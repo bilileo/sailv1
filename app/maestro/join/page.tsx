@@ -34,8 +34,7 @@ export default function JoinClassPage() {
     // Guardamos en sesión solo para pasar la validación a la siguiente pantalla
     sessionStorage.setItem('registerAccess', JSON.stringify({ code: normalizedCode }));
     setError('');
-    
-    // Actualizado a la nueva ruta de tu arquitectura
+   
     router.push(`/maestro/register?code=${normalizedCode}`); 
   };
 
