@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
+import { getSession, signOut } from 'next-auth/react';
 import { FormularioClase } from './FormularioClase';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
@@ -12,6 +13,16 @@ const HORAS_24 = Array.from({ length: 24 }, (_, i) => `${i}:00- ${i + 1}:00`);
 const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 export default function SailAdminDashboard() {
+  const [usuarioActivo, setUsuarioActivo] = useState<{name: string, role: string} | null>(null);
+
+  useEffect(() => {
+    getSession().then(session => {
+      if (session?.user) setUsuarioActivo(session.user as any);
+    });
+  }, []);
+
+  const isMaestro = usuarioActivo?.role === 'MAESTRO';// Ejemplo de cómo usar el rol para mostrar u ocultar elementos
+
   const [activeTab, setActiveTab] = useState('Inicio');
   const [clases, setClases] = useState<Clase[]>([]);
   const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
@@ -210,11 +221,14 @@ export default function SailAdminDashboard() {
 
     return encontrada ? (
       <button 
-        onClick={() => handleAbrirModal(encontrada)}
-        className="w-full h-full min-h-[50px] bg-blue-600 hover:bg-blue-700 text-white flex flex-col items-center justify-center p-2 border-b border-blue-500 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+        // Solo abrimos el modal si NO es maestro
+        onClick={() => !isMaestro && handleAbrirModal(encontrada)}
+        // Quitamos la clase 'hover' si es maestro para que parezca una celda estática
+        className={`w-full h-full min-h-[50px] bg-blue-600 text-white flex flex-col items-center justify-center p-2 border-b border-blue-500 shadow-sm transition-colors focus:outline-none ${!isMaestro ? 'hover:bg-blue-700 cursor-pointer focus:ring-2 focus:ring-blue-300' : 'cursor-default'}`}
       >
         <span className="text-xs font-bold leading-tight">{encontrada.nombre}</span>
-        <span className="text-[9px] text-blue-200 mt-1 opacity-80">(Editar)</span>
+        {/* Solo mostramos la palabra (Editar) si es administrador */}
+        {!isMaestro && <span className="text-[9px] text-blue-200 mt-1 opacity-80">(Editar)</span>}
       </button>
     ) : (
       <div className="w-full h-full min-h-[50px] bg-green-700 text-white/60 flex items-center justify-center text-xs border-b border-green-800/50">
@@ -228,25 +242,34 @@ export default function SailAdminDashboard() {
       {/* Navbar */}
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
         <div className="flex space-x-8">
-          {['Inicio', 'Administradores', 'Maestros', 'Clases'].map(t => (
-            <button 
-              key={t} 
-              onClick={() => setActiveTab(t)} 
-              className={`text-sm font-bold transition-colors ${
-                activeTab === t 
-                  ? 'text-black border-b-2 border-black' 
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
+          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases'].map(t => {
+           // Si es MAESTRO, ocultar todo excepto "Inicio"
+            if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio') return null;
+
+            // Si es ADMIN, ocultar las pestañas de "Administradores" y "Auxiliares"
+            if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
+
+            return (
+              <button 
+                key={t} 
+                onClick={() => setActiveTab(t)} 
+                className={`text-sm font-bold transition-colors ${
+                  activeTab === t 
+                    ? 'text-black border-b-2 border-black' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {t}
+              </button>
+            );
+          })}
         </div>
         <div className="flex items-center space-x-4 text-sm font-bold">
           <div className="flex items-center text-gray-700">
-            <User className="w-4 h-4 mr-2"/> Oscar López (Administrador)
+            <User className="w-4 h-4 mr-2"/> 
+            {usuarioActivo ? `${usuarioActivo.name} (${usuarioActivo.role})` : 'Cargando...'}
           </div>
-          <button className="text-red-500 hover:text-red-700 flex items-center space-x-1">
+          <button onClick={() => signOut()} className="text-red-500 hover:text-red-700 flex items-center space-x-1">
             <LogOut className="w-4 h-4" />
             <span>Cerrar Sesión</span>
           </button>
@@ -258,7 +281,9 @@ export default function SailAdminDashboard() {
           <div className="space-y-8">
             {/* Saludo */}
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">Hola, Oscar</h1>
+              <h1 className="text-3xl font-bold text-gray-800">
+                Hola, {usuarioActivo ? usuarioActivo.name.split(' ')[0] : 'Cargando...'}
+              </h1>
               <p className="text-sm text-gray-600 mt-1">Resúmenes de operaciones de laboratorio</p>
             </div>
 
@@ -372,9 +397,10 @@ export default function SailAdminDashboard() {
         )}
 
         {/* Tabs no implementadas */}
-        {(activeTab === 'Administradores' || activeTab === 'Maestros') && (
+        {(activeTab === 'Administradores' || activeTab === 'Maestros' || activeTab === 'Auxiliares') && (
           <div className="bg-white rounded-sm border border-gray-200 p-8 text-center">
-            <p className="text-gray-600 text-sm">Esta sección aún no está implementada</p>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">Gestión de {activeTab}</h2>
+            <p className="text-gray-600 text-sm">El módulo para crear y editar {activeTab.toLowerCase()} se construirá aquí.</p>
           </div>
         )}
       </main>

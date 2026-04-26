@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from 'mssql';
 import crypto from 'crypto';
+import { getToken } from 'next-auth/jwt'; // Importamos getToken para leer la cookie de sesión y extraer el rol del usuario
 
 const dbConfig = {
   user: 'sa', 
@@ -10,15 +11,25 @@ const dbConfig = {
   options: { encrypt: false, trustServerCertificate: true }
 };
 
-export async function GET() {
+
+// GET: Trae todas las clases activas. Si es MAESTRO, solo las suyas. Si es ADMIN, todas.
+export async function GET(request: Request) {
   try {
+    // 1. Leemos quién está pidiendo las clases desencriptando su cookie
+    const token = await getToken({ req: request as any, secret: "SAIL_SUPER_SECRETO_2026" });
+    
+    if (!token) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
     const pool = await sql.connect(dbConfig);
-    const result = await pool.request().query(`
+    
+    // 2. Preparamos la consulta base
+    let query = `
       SELECT 
         c.id, 
         c.subjectName as nombre, 
         l.name as laboratorio,
-        -- Obtenemos la fecha exacta sin conversiones extrañas
         FORMAT(c.startTime, 'yyyy-MM-ddTHH:mm:ss') as startTime,
         CAST(DATEPART(HOUR, c.startTime) AS VARCHAR) + ':00- ' + 
         CASE 
@@ -28,9 +39,20 @@ export async function GET() {
       FROM ClassSession c 
       INNER JOIN Laboratory l ON c.laboratoryId = l.id 
       WHERE c.isActive = 1
-    `);
+    `;
+
+    const sqlRequest = pool.request();
+
+    // 3. LA MAGIA DE ROLES: Si es un MAESTRO, inyectamos un filtro estricto por su ID
+    if (token.role === 'MAESTRO') {
+      query += ` AND c.maestroId = @maestroId`;
+      sqlRequest.input('maestroId', sql.VarChar(36), token.id);
+    }
+
+    const result = await sqlRequest.query(query);
     return NextResponse.json(result.recordset);
   } catch (error) {
+    console.error("Error en GET clases:", error);
     return NextResponse.json({ error: 'Error en GET' }, { status: 500 });
   }
 }
@@ -160,3 +182,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
