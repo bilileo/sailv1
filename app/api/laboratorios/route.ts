@@ -3,7 +3,7 @@ import sql from 'mssql';
 
 const dbConfig = {
   user: 'sa', 
-  password: 'PON_TU_CONTRASEÑA_REAL_AQUI', // <-- Recuerda poner tu password
+  password: 'admin123', // <-- Recuerda poner tu password
   server: 'localhost',
   database: 'SAIL_DB',
   options: { encrypt: false, trustServerCertificate: true }
