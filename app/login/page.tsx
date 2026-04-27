@@ -34,7 +34,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="bg-white p-8 rounded-md shadow-lg w-full max-w-md border border-gray-200">
         <h1 className="text-3xl font-bold text-center text-[#0b6e3f] mb-2">SAIL</h1>
-        <p className="text-center text-gray-500 text-sm mb-8">Sistema de Administración e Inventario de Laboratorios</p>
+        <p className="text-center text-gray-500 text-sm mb-8">Sistema de Asistencias e Ingreso al Laboratorios</p>
 
         {error && (
           <div className="bg-red-50 text-red-600 p-3 rounded-sm mb-4 text-sm font-bold flex items-center">
@@ -53,7 +53,7 @@ export default function Login() {
           </div>
           
           <button type="submit" disabled={loading} className="w-full bg-[#0b6e3f] text-white py-3 rounded-sm font-bold hover:bg-green-800 transition-colors disabled:opacity-50">
-            {loading ? 'Iniciando sesión...' : 'ENTRAR AL SISTEMA'}
+            {loading ? 'Iniciando sesión...' : 'INICIAR SESIÓN'}
           </button>
         </form>
       </div>

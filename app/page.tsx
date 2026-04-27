@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
 import { getSession, signOut } from 'next-auth/react';
 import { FormularioClase } from './FormularioClase';
+import { GestionUsuarios } from './GestionUsuarios';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
@@ -13,7 +14,7 @@ const HORAS_24 = Array.from({ length: 24 }, (_, i) => `${i}:00- ${i + 1}:00`);
 const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 export default function SailAdminDashboard() {
-  const [usuarioActivo, setUsuarioActivo] = useState<{name: string, role: string} | null>(null);
+  const [usuarioActivo, setUsuarioActivo] = useState<{id: string, name: string, role: string} | null>(null);
 
   useEffect(() => {
     getSession().then(session => {
@@ -396,12 +397,17 @@ export default function SailAdminDashboard() {
           />
         )}
 
-        {/* Tabs no implementadas */}
-        {(activeTab === 'Administradores' || activeTab === 'Maestros' || activeTab === 'Auxiliares') && (
-          <div className="bg-white rounded-sm border border-gray-200 p-8 text-center">
-            <h2 className="text-xl font-bold text-gray-800 mb-2">Gestión de {activeTab}</h2>
-            <p className="text-gray-600 text-sm">El módulo para crear y editar {activeTab.toLowerCase()} se construirá aquí.</p>
-          </div>
+        {/* Renderizado dinámico de Gestión de Usuarios */}
+        {activeTab === 'Maestros' && (
+          <GestionUsuarios rolDestino="MAESTRO" usuarioActivoId={usuarioActivo?.id} />
+        )}
+
+        {activeTab === 'Auxiliares' && (
+          <GestionUsuarios rolDestino="AUXILIAR" usuarioActivoId={usuarioActivo?.id}/>
+        )}
+
+        {activeTab === 'Administradores' && (
+          <GestionUsuarios rolDestino="ADMIN" usuarioActivoId={usuarioActivo?.id}/>
         )}
       </main>
 
