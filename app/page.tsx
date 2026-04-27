@@ -325,10 +325,13 @@ export default function SailAdminDashboard() {
             <User className="w-4 h-4 mr-2"/> 
             {usuarioActivo ? `${usuarioActivo.name} (${usuarioActivo.role})` : 'Cargando...'}
           </div>
-          <button onClick={() => signOut()} className="text-red-500 hover:text-red-700 flex items-center space-x-1">
+          <button onClick={async () => {
+              await signOut({ redirect: false });
+              window.location.href = '/login'; 
+            }}className="text-red-500 hover:text-red-700 flex items-center space-x-1">
             <LogOut className="w-4 h-4" />
             <span>Cerrar Sesión</span>
-          </button>
+            </button>
         </div>
       </nav>
 
