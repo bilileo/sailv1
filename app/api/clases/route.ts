@@ -28,6 +28,7 @@ export async function GET(request: Request) {
     let query = `
       SELECT 
         c.id, 
+        c.maestroId,
         c.subjectName as nombre, 
         l.name as laboratorio,
         FORMAT(c.startTime, 'yyyy-MM-ddTHH:mm:ss') as startTime,

@@ -4,6 +4,7 @@ import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle
 import { getSession, signOut } from 'next-auth/react';
 import { FormularioClase } from './FormularioClase';
 import { GestionUsuarios } from './GestionUsuarios';
+import { GestionIncidencias } from './GestionIncidencias';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
@@ -43,6 +44,7 @@ export default function SailAdminDashboard() {
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [editDuracion, setEditDuracion] = useState(1);
+  const [incidencias, setIncidencias] = useState<any[]>([]);
 
   // Lógica para detectar qué horas están ocupadas (excluyendo la clase que estamos editando)
   const labNombreEdicion = laboratorios.find(l => l.id.toString() === editLab)?.name;
@@ -81,6 +83,9 @@ export default function SailAdminDashboard() {
 
     const resLabs = await fetch('/api/laboratorios');
     if (resLabs.ok) setLaboratorios(await resLabs.json());
+
+    const resInc = await fetch('/api/incidencias');
+    if (resInc.ok) setIncidencias(await resInc.json());
   };
 
   useEffect(() => { cargarDatosBD(); }, []);
@@ -243,11 +248,11 @@ export default function SailAdminDashboard() {
       {/* Navbar */}
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
         <div className="flex space-x-8">
-          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases'].map(t => {
+          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Incidencias'].map(t => {
            // Si es MAESTRO, ocultar todo excepto "Inicio"
-            if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio') return null;
-
-            // Si es ADMIN, ocultar las pestañas de "Administradores" y "Auxiliares"
+          if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
+          
+            // Si es Auxiliar, ocultar las pestañas de "Administradores" y "Auxiliares"
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
 
             return (
@@ -288,8 +293,10 @@ export default function SailAdminDashboard() {
               <p className="text-sm text-gray-600 mt-1">Resúmenes de operaciones de laboratorio</p>
             </div>
 
-            {/* Tarjetas de métricas (Ahora reaccionan al día filtrado) */}
-            <div className="grid grid-cols-3 gap-6">
+            {/* Tarjetas de métricas adaptables por rol */}
+            <div className={`grid gap-6 ${isMaestro ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              
+              {/* Tarjeta 1: Clases (Todos la ven) */}
               <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
                 <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
                   Clases ({diaFiltro})
@@ -300,27 +307,40 @@ export default function SailAdminDashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
-                <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
-                  Salones ocupados
+              {/* Tarjeta 2: Salones ocupados (OCULTA PARA MAESTROS) */}
+              {!isMaestro && (
+                <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
+                    Salones ocupados
+                  </div>
+                  <div className="bg-green-700 px-4 py-6 text-white">
+                    <div className="text-5xl font-bold">{salonesOcupados}/{laboratorios.length}</div>
+                    <div className="text-sm mt-2">
+                      Laboratorios {Array.from(new Set(clasesDelDia.map(c => c.laboratorio))).join(' y ')} ocupados
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-green-700 px-4 py-6 text-white">
-                  <div className="text-5xl font-bold">{salonesOcupados}/{laboratorios.length}</div>
+              )}
+
+              {/* Tarjeta 3: Incidencias (Cambia su texto y conteo si es Maestro) */}
+              <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-yellow-500 text-white px-4 py-2 text-sm font-bold">
+                  {isMaestro ? 'Mis fallas reportadas' : 'Notas de maestros'}
+                </div>
+                <div className="bg-yellow-500 px-4 py-6 text-white">
+                  <div className="text-5xl font-bold">
+                    {/* Si es maestro, solo cuenta sus propios reportes pendientes. Si es Admin, cuenta todos. */}
+                    {isMaestro 
+                      ? incidencias.filter(i => i.status === 'PENDING' && i.reportador === usuarioActivo?.name).length 
+                      : incidencias.filter(i => i.status === 'PENDING').length
+                    }
+                  </div>
                   <div className="text-sm mt-2">
-                    Laboratorios {Array.from(new Set(clasesDelDia.map(c => c.laboratorio))).join(' y ')} ocupados
+                    {isMaestro ? 'Mis reportes pendientes de solución' : 'Reportes de fallas pendientes'}
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
-                <div className="bg-yellow-500 text-white px-4 py-2 text-sm font-bold">
-                  Notas de maestros
-                </div>
-                <div className="bg-yellow-500 px-4 py-6 text-white">
-                  <div className="text-5xl font-bold">2</div>
-                  <div className="text-sm mt-2">Reportes de fallas pendientes</div>
-                </div>
-              </div>
             </div>
 
             {/* Horario Visual */}
@@ -408,6 +428,16 @@ export default function SailAdminDashboard() {
 
         {activeTab === 'Administradores' && (
           <GestionUsuarios rolDestino="ADMIN" usuarioActivoId={usuarioActivo?.id}/>
+        )}
+
+        {activeTab === 'Incidencias' && (
+          <GestionIncidencias 
+            // Filtramos el arreglo antes de que el componente lo dibuje
+            incidencias={isMaestro ? incidencias.filter(i => i.reportador === usuarioActivo?.name) : incidencias} 
+            clases={clases} 
+            usuarioActivo={usuarioActivo} 
+            onIncidenciaActualizada={cargarDatosBD} 
+          />
         )}
       </main>
 
