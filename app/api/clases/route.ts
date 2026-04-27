@@ -29,6 +29,7 @@ export async function GET(request: Request) {
       SELECT 
         c.id, 
         c.maestroId,
+        c.status,
         c.subjectName as nombre, 
         l.name as laboratorio,
         FORMAT(c.startTime, 'yyyy-MM-ddTHH:mm:ss') as startTime,
@@ -141,9 +142,10 @@ export async function PUT(request: Request) {
       .input('name', sql.NVarChar(100), body.nombre)
       .input('start', sql.DateTime2, startTime)
       .input('end', sql.DateTime2, endTime)
+      .input('status', sql.VarChar(20), body.status)
       .query(`
         UPDATE ClassSession 
-        SET laboratoryId = @labId, subjectName = @name, startTime = @start, estimatedEndTime = @end 
+        SET laboratoryId = @labId, subjectName = @name, startTime = @start, estimatedEndTime = @end, status = @status
         WHERE id = @id
       `);
       

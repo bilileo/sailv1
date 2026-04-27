@@ -8,7 +8,7 @@ import { GestionIncidencias } from './GestionIncidencias';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
-interface Clase { id: string; nombre: string; laboratorio: string; horario: string; startTime: string; }
+interface Clase { id: string; nombre: string; laboratorio: string; horario: string; startTime: string; status?: string; }
 interface Laboratorio { id: number; name: string; }
 
 const HORAS_24 = Array.from({ length: 24 }, (_, i) => `${i}:00- ${i + 1}:00`);
@@ -45,6 +45,7 @@ export default function SailAdminDashboard() {
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [editDuracion, setEditDuracion] = useState(1);
   const [incidencias, setIncidencias] = useState<any[]>([]);
+  const [editStatus, setEditStatus] = useState('ACTIVE');
 
   // Lógica para detectar qué horas están ocupadas (excluyendo la clase que estamos editando)
   const labNombreEdicion = laboratorios.find(l => l.id.toString() === editLab)?.name;
@@ -78,17 +79,33 @@ export default function SailAdminDashboard() {
 
   // Función para descargar toda la info
   const cargarDatosBD = async () => {
-    const resClases = await fetch('/api/clases');
+    // Generamos un número único (la hora actual en milisegundos)
+    const timestamp = new Date().getTime();
+
+    // Le agregamos '?t=numero' a la URL para obligar a Next.js a traer datos frescos
+    const resClases = await fetch(`/api/clases?t=${timestamp}`, { cache: 'no-store' });
     if (resClases.ok) setClases(await resClases.json());
 
-    const resLabs = await fetch('/api/laboratorios');
+    const resLabs = await fetch(`/api/laboratorios?t=${timestamp}`, { cache: 'no-store' });
     if (resLabs.ok) setLaboratorios(await resLabs.json());
 
-    const resInc = await fetch('/api/incidencias');
+    const resInc = await fetch(`/api/incidencias?t=${timestamp}`, { cache: 'no-store' });
     if (resInc.ok) setIncidencias(await resInc.json());
   };
 
-  useEffect(() => { cargarDatosBD(); }, []);
+// === RADAR DE ACTUALIZACIÓN (POLLING) ===
+  useEffect(() => {
+    // Carga los datos inmediatamente cuando el usuario entra
+    cargarDatosBD();
+
+    // Configura un temporizador silencioso que revisa cambios cada 5 segundos
+    const radar = setInterval(() => {
+      cargarDatosBD();
+    }, 5000); // 5000 milisegundos = 5 segundos
+
+    // Si el usuario cierra sesión o la pestaña, apagamos el radar
+    return () => clearInterval(radar);
+  }, []); // Los corchetes vacíos son clave para que no se duplique el radar
 
   const handleCrearClase = async (datosClase: any) => {
     await fetch('/api/clases', {
@@ -110,6 +127,7 @@ export default function SailAdminDashboard() {
     const labId = laboratorios.find(l => l.name === clase.laboratorio)?.id.toString() || '';
     setEditLab(labId);
     setEditHorario(clase.horario);
+    setEditStatus(clase.status || 'ACTIVE');
     
     // Calculamos la duración original
     const hI = parseInt(clase.horario.split('-')[0]);
@@ -189,7 +207,8 @@ export default function SailAdminDashboard() {
           laboratorioId: editLab,
           horario: editHorario,
           duracion: editDuracion, 
-          dia: mapaDias[new Date(claseSeleccionada!.startTime).getDay()]
+          dia: mapaDias[new Date(claseSeleccionada!.startTime).getDay()],
+          status: editStatus
         })
       });
 
@@ -225,21 +244,52 @@ export default function SailAdminDashboard() {
       return horaActual >= horaInicio && horaActual < horaFin;
     });
 
-    return encontrada ? (
+    if (!encontrada) {
+      return (
+        <div className="w-full h-full min-h-[50px] bg-green-700 text-white/60 flex items-center justify-center text-xs border-b border-green-800/50">
+          Disponible
+        </div>
+      );
+    }
+
+    // Evaluamos el estado
+    const esMantenimiento = encontrada.status === 'MAINTENANCE';
+
+    return (
       <button 
         // Solo abrimos el modal si NO es maestro
         onClick={() => !isMaestro && handleAbrirModal(encontrada)}
-        // Quitamos la clase 'hover' si es maestro para que parezca una celda estática
-        className={`w-full h-full min-h-[50px] bg-blue-600 text-white flex flex-col items-center justify-center p-2 border-b border-blue-500 shadow-sm transition-colors focus:outline-none ${!isMaestro ? 'hover:bg-blue-700 cursor-pointer focus:ring-2 focus:ring-blue-300' : 'cursor-default'}`}
+        // MAGIA VISUAL: Aplicamos el fondo GRIS si está en mantenimiento, o AZUL si es clase normal
+        className={`w-full h-full min-h-[50px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-colors focus:outline-none 
+          ${esMantenimiento 
+            ? 'bg-gray-500 border-gray-600' // <-- COLOR GRIS
+            : 'bg-blue-600 border-blue-500' // <-- COLOR AZUL NORMAL
+          } 
+          ${!isMaestro 
+            ? (esMantenimiento ? 'hover:bg-gray-600 cursor-pointer' : 'hover:bg-blue-700 cursor-pointer') 
+            : 'cursor-default'
+          }
+        `}
       >
-        <span className="text-xs font-bold leading-tight">{encontrada.nombre}</span>
-        {/* Solo mostramos la palabra (Editar) si es administrador */}
-        {!isMaestro && <span className="text-[9px] text-blue-200 mt-1 opacity-80">(Editar)</span>}
+        {esMantenimiento ? (
+          // Vista cuando está en mantenimiento
+          <>
+            <span className="text-[10px] font-bold leading-tight uppercase tracking-wider text-gray-100 text-center">
+              En Mantenimiento
+            </span>
+          </>
+        ) : (
+          // Vista cuando es una clase normal
+          <span className="text-xs font-bold leading-tight text-center">{encontrada.nombre}</span>
+        )}
+        
+        {/* Etiqueta de edición (solo para admins/auxiliares) */}
+        {!isMaestro && (
+          <span className="text-[9px] mt-1 opacity-80 text-white/70">
+            (Editar)
+          </span>
+        )}
       </button>
-    ) : (
-      <div className="w-full h-full min-h-[50px] bg-green-700 text-white/60 flex items-center justify-center text-xs border-b border-green-800/50">
-        Disponible
-      </div>
     );
   };
 
@@ -251,7 +301,7 @@ export default function SailAdminDashboard() {
           {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Incidencias'].map(t => {
            // Si es MAESTRO, ocultar todo excepto "Inicio"
           if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
-          
+
             // Si es Auxiliar, ocultar las pestañas de "Administradores" y "Auxiliares"
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
 
@@ -482,6 +532,19 @@ export default function SailAdminDashboard() {
                       <span>{erroresEdicion.nombre}</span>
                     </div>
                   )}
+                </div>
+
+                {/* Estado de la Sesión */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Estado de la Sesión</label>
+                  <select 
+                    value={editStatus} // Crea un nuevo useState para esto: [editStatus, setEditStatus]
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black"
+                  >
+                    <option value="ACTIVE">Activa (Clase normal)</option>
+                    <option value="MAINTENANCE">Mantenimiento (Bloqueado)</option>
+                  </select>
                 </div>
 
                 {/* Laboratorio y Duración */}
