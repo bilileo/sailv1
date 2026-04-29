@@ -1,40 +1,4 @@
 {
   "activeCode": null,
-  "students": [
-    {
-      "id": "1198109",
-      "name": "Ramon Alberto Vazquez Guzman",
-      "code": "CTUVEB",
-      "registeredAt": "2026-04-05T05:00:34.184Z",
-      "status": "normal"
-    },
-    {
-      "id": "11122233",
-      "name": "Juanito Alcachofa Martinez",
-      "code": "JDHHD7",
-      "registeredAt": "2026-04-05T05:02:13.045Z",
-      "status": "tarde"
-    },
-    {
-      "id": "2223333",
-      "name": "Miguel Hurtado Martinez",
-      "code": "4L1XKE",
-      "registeredAt": "2026-04-05T05:36:46.003Z",
-      "status": "normal"
-    },
-    {
-      "id": "3334444",
-      "name": "Juan José Lopez Perez",
-      "code": "NYPNRW",
-      "registeredAt": "2026-04-05T05:37:38.400Z",
-      "status": "normal"
-    },
-    {
-      "id": "4445555",
-      "name": "Alan Orozco Beltran",
-      "code": "0JQL6V",
-      "registeredAt": "2026-04-05T05:38:38.098Z",
-      "status": "normal"
-    }
-  ]
+  "students": []
 }

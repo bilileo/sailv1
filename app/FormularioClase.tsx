@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Plus, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, AlertCircle, CheckCircle, Palette} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Laboratorio { id: number; name: string; }
@@ -12,6 +12,16 @@ interface FormularioClaseProps {
   laboratorios: Laboratorio[];
   clases: Clase[];
 }
+
+// Paleta de colores
+const PALETA_COLORES = [
+  { id: 'blue', clase: 'bg-blue-600', hover: 'hover:bg-blue-700' },
+  { id: 'emerald', clase: 'bg-emerald-600', hover: 'hover:bg-emerald-700' },
+  { id: 'purple', clase: 'bg-purple-600', hover: 'hover:bg-purple-700' },
+  { id: 'rose', clase: 'bg-rose-600', hover: 'hover:bg-rose-700' },
+  { id: 'orange', clase: 'bg-orange-600', hover: 'hover:bg-orange-700' },
+  { id: 'teal', clase: 'bg-teal-600', hover: 'hover:bg-teal-700' },
+];
 
 export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: FormularioClaseProps) => {
   const [nombre, setNombre] = useState('');
@@ -27,6 +37,7 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
     horario?: string;
   }>({});
   const [enviando, setEnviando] = useState(false);
+  const [colorFondo, setColorFondo] = useState(PALETA_COLORES[0].clase);
 
   // Cargar maestros
   useEffect(() => {
@@ -153,7 +164,8 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
     maestroId: maestro,
     dia,
     horario,
-    duracion
+    duracion,
+    color: colorFondo
   };
 
   onClaseCreada(datosClase);
@@ -166,6 +178,7 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
 
   // Limpiar formulario
   setNombre('');
+  setColorFondo(PALETA_COLORES[0].clase);
   setErrores({});
   setEnviando(false);
 };
@@ -303,6 +316,45 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="flex gap-3 mt-1 items-center">
+          {/* Paleta de colores */}
+          {PALETA_COLORES.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setColorFondo(c.clase)} 
+              className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${
+                colorFondo === c.clase 
+                  ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md' 
+                  : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
+              }`}
+              title="Color predefinido"
+            />
+          ))}
+
+          {/* Selector personalizado (Botón Arcoíris) */}
+          <label 
+            className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${
+              colorFondo.startsWith('#') 
+                ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md' 
+                : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
+            }`}
+            style={
+              colorFondo.startsWith('#') 
+                ? { backgroundColor: colorFondo } // Si ya eligió uno, mostramos el color personalizado
+                : { background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' } // Si no arcoíris
+            }
+            title="Elegir color personalizado"
+          >
+            <input
+              type="color"
+              value={colorFondo.startsWith('#') ? colorFondo : '#0b6e3f'} 
+              onChange={(e) => setColorFondo(e.target.value)}
+              className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+            />
+          </label>
         </div>
 
         <button 

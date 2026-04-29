@@ -17,8 +17,8 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('ClassSession')
-      .select('id, teacherid, status, subject, starttime, endtime, dayofweek, Laboratory(name)')
-      .in('status', ['ACTIVE', 'ENDED']);
+      .select('id, teacherid, status, subject, starttime, endtime, dayofweek, color, Laboratory(name)')
+      .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE']); 
 
     if (token.role === 'MAESTRO') {
       query = query.eq('teacherid', token.id);
@@ -40,7 +40,8 @@ export async function GET(request: Request) {
         nombre: c.subject,      
         laboratorio: c.Laboratory ? c.Laboratory.name : 'Sin Asignar',
         dayOfWeek: c.dayofweek,
-        horario: `${sHour}:00 - ${eHour}:00`
+        horario: `${sHour}:00 - ${eHour}:00`,
+        color: c.color || 'bg-blue-600'
       };
     }).filter(Boolean); 
 
@@ -75,7 +76,8 @@ export async function POST(request: Request) {
         dayofweek: dayOfWeek,                       
         starttime: startTime,                       
         endtime: endTime,                           
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        color: body.color || 'bg-blue-600'
       }]);
       
     if (error) throw error;
@@ -118,7 +120,8 @@ export async function PUT(request: Request) {
         dayofweek: dayOfWeek,
         starttime: startTime,
         endtime: endTime,
-        status: body.status || 'ACTIVE'
+        status: body.status || 'ACTIVE',
+        color: body.color
       })
       .eq('id', body.id);
       

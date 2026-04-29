@@ -10,11 +10,19 @@ import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
 // 1. Actualizamos la interfaz para usar dayOfWeek
-interface Clase { id: string; nombre: string; laboratorio: string; horario: string; status?: string; dayOfWeek: number; }
+interface Clase { id: string; nombre: string; laboratorio: string; horario: string; status?: string; dayOfWeek: number; color?: string; }
 interface Laboratorio { id: number; name: string; }
 
 const HORAS_24 = Array.from({ length: 24 }, (_, i) => `${i}:00- ${i + 1}:00`);
 const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const PALETA_COLORES = [
+  { id: 'blue', clase: 'bg-blue-600' },
+  { id: 'emerald', clase: 'bg-emerald-600' },
+  { id: 'purple', clase: 'bg-purple-600' },
+  { id: 'rose', clase: 'bg-rose-600' },
+  { id: 'orange', clase: 'bg-orange-600' },
+  { id: 'teal', clase: 'bg-teal-600' },
+];
 
 // Función helper para convertir el número de PostgreSQL (1-7) a Nombre de Día
 const getNombreDia = (dayOfWeek?: number) => {
@@ -54,6 +62,7 @@ export default function SailAdminDashboard() {
   const [editDuracion, setEditDuracion] = useState(1);
   const [incidencias, setIncidencias] = useState<any[]>([]);
   const [editStatus, setEditStatus] = useState('ACTIVE');
+  const [editColor, setEditColor] = useState('bg-blue-600');
 
   const labNombreEdicion = laboratorios.find(l => l.id.toString() === editLab)?.name;
   
@@ -124,6 +133,7 @@ export default function SailAdminDashboard() {
     setEditLab(labId);
     setEditHorario(clase.horario);
     setEditStatus(clase.status || 'ACTIVE');
+    setEditColor(clase.color || 'bg-blue-600');
     
     const hI = parseInt(clase.horario.split('-')[0]);
     const hF = parseInt(clase.horario.split('-')[1]);
@@ -221,7 +231,8 @@ export default function SailAdminDashboard() {
           duracion: editDuracion, 
           // 3. Usamos getNombreDia para el payload de edición
           dia: getNombreDia(claseSeleccionada!.dayOfWeek),
-          status: editStatus
+          status: editStatus,
+          color: editColor
         })
       });
 
@@ -242,6 +253,11 @@ export default function SailAdminDashboard() {
   // 4. Filtramos las clases comparando nuestro getNombreDia con el filtro actual
   const clasesDelDia = clases.filter(c => getNombreDia(c.dayOfWeek) === diaFiltro);
   const salonesOcupados = new Set(clasesDelDia.map(c => c.laboratorio)).size;
+
+  const laboratoriosUnicos = Array.from(new Set(clasesDelDia.map(c => c.laboratorio)));
+  const textoLaboratorios = laboratoriosUnicos.length > 1 
+    ? laboratoriosUnicos.slice(0, -1).join(', ') + ' y ' + laboratoriosUnicos[laboratoriosUnicos.length - 1]
+    : laboratoriosUnicos[0] || 'Ninguno';
 
   const renderizarCelda = (hora: string, nombreLab: string) => {
     const horaActual = parseInt(hora.split(':')[0]);
@@ -278,20 +294,28 @@ export default function SailAdminDashboard() {
 
     const esEnCurso = esActiva && esDiaActual && horaSistema >= inicioClase && horaSistema < finClase;
     const esProgramada = esActiva && !esEnCurso && (!esDiaActual || horaSistema < inicioClase);
+    const colorClase = encontrada.color || 'bg-blue-600';
+    const esHex = colorClase.startsWith('#');
 
     return (
       <button 
         onClick={() => handleAbrirAcciones(encontrada)}
-        className={`w-full h-full min-h-[64px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-colors focus:outline-none 
+        style={esHex && !esMantenimiento && !esFinalizada ? { backgroundColor: colorClase } : {}}
+        className={`w-full h-full min-h-[64px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-all focus:outline-none 
           ${esMantenimiento 
             ? 'bg-gray-500 border-gray-600' 
             : esFinalizada
             ? 'bg-red-600 border-red-700'
             : esProgramada
-            ? 'bg-gray-700 border-gray-800'
-            : 'bg-blue-600 border-blue-500' 
+            ? `${!esHex ? colorClase : ''} opacity-80 border-black/10` // Si es tailwind, pone la clase
+            : `${!esHex ? colorClase : ''} border-black/10`
           } 
-          ${esMantenimiento ? 'hover:bg-gray-600 cursor-pointer' : esFinalizada ? 'hover:bg-red-700 cursor-pointer' : esProgramada ? 'hover:bg-gray-800 cursor-pointer' : 'hover:bg-blue-700 cursor-pointer'}
+          ${esMantenimiento 
+            ? 'hover:bg-gray-600 cursor-pointer' 
+            : esFinalizada 
+            ? 'hover:bg-red-700 cursor-pointer' 
+            : 'hover:brightness-110 cursor-pointer' /* <--- Hover universal para iluminar cualquier color de la paleta */
+          }
         `}
       >
         {esMantenimiento ? (
@@ -383,35 +407,41 @@ export default function SailAdminDashboard() {
 
             <div className={`grid gap-6 ${isMaestro ? 'grid-cols-2' : 'grid-cols-3'}`}>
               
-              <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
+              {/* TARJETA 1 */}
+              <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
                 <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
                   Clases ({diaFiltro})
                 </div>
-                <div className="bg-green-700 px-4 py-6 text-white">
+                {/* flex-grow */}
+                <div className="bg-green-700 px-4 py-6 text-white flex-grow">
                   <div className="text-5xl font-bold">{clasesDelDia.length}</div>
                   <div className="text-sm mt-2">Sesiones programadas</div>
                 </div>
               </div>
 
+              {/* TARJETA 2 */}
               {!isMaestro && (
-                <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
                   <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
                     Salones ocupados
                   </div>
-                  <div className="bg-green-700 px-4 py-6 text-white">
+                  {/* flex-grow*/}
+                  <div className="bg-green-700 px-4 py-6 text-white flex-grow">
                     <div className="text-5xl font-bold">{salonesOcupados}/{laboratorios.length}</div>
                     <div className="text-sm mt-2">
-                      Laboratorios {Array.from(new Set(clasesDelDia.map(c => c.laboratorio))).join(' y ')} ocupados
+                      Laboratorios {textoLaboratorios} ocupados
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
+              {/* TARJETA 3 */}
+              <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
                 <div className="bg-yellow-500 text-white px-4 py-2 text-sm font-bold">
                   {isMaestro ? 'Mis fallas reportadas' : 'Notas de maestros'}
                 </div>
-                <div className="bg-yellow-500 px-4 py-6 text-white">
+                {/* flex-grow*/}
+                <div className="bg-yellow-500 px-4 py-6 text-white flex-grow">
                   <div className="text-5xl font-bold">
                     {isMaestro 
                       ? incidencias.filter(i => i.status === 'PENDING' && i.reportador === usuarioActivo?.name).length 
@@ -455,7 +485,7 @@ export default function SailAdminDashboard() {
 
               <div className="max-h-[600px] overflow-y-auto">
                 <table className="w-full text-left border-collapse">
-                  <thead className="sticky top-0 bg-gray-100 border-b">
+                  <thead className="sticky top-0 bg-gray-100 border-b z-20 shadow-sm">
                     <tr>
                       <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase border-r w-24 text-center">Hora</th>
                       
@@ -644,6 +674,46 @@ export default function SailAdminDashboard() {
                     </div>
                   )}
                 </div>
+
+                <div className="flex gap-3 mt-1 items-center">
+                {/* Paleta de colores */}
+                {PALETA_COLORES.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setEditColor(c.clase)} 
+                    className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${
+                      editColor === c.clase 
+                        ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md' 
+                        : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
+                    }`}
+                    title="Color predefinido"
+                  />
+                ))}
+
+                {/* Selector personalizado (Botón Arcoíris) */}
+                <label 
+                  className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${
+                    editColor.startsWith('#') 
+                      ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md' 
+                      : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
+                  }`}
+                  style={
+                    editColor.startsWith('#') 
+                      ? { backgroundColor: editColor } // Si ya eligió uno, mostramos su color personalizado
+                      : { background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' } // Si no arcoíris
+                  }
+                  title="Elegir color personalizado"
+                >
+                  <input
+                    type="color"
+                    value={editColor.startsWith('#') ? editColor : '#0b6e3f'} 
+                    onChange={(e) => setEditColor(e.target.value)}
+                    className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                  />
+                </label>
+              </div>
+
               </div>
 
               <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">

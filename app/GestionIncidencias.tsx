@@ -116,7 +116,7 @@ export function GestionIncidencias({
     <div className="bg-white rounded-sm border border-gray-200 shadow-sm p-6 relative">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold flex items-center text-yellow-600">
-          <Wrench className="w-5 h-5 mr-2 text-yellow-600" /> Control de Hardware
+          <Wrench className="w-5 h-5 mr-2 text-yellow-600" /> Control de incidencias
         </h2>
         <button 
           onClick={() => abrirModalFormulario()} 
