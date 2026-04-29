@@ -8,11 +8,18 @@ import { GestionIncidencias } from './GestionIncidencias';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
-interface Clase { id: string; nombre: string; laboratorio: string; horario: string; startTime: string; status?: string; }
+// 1. Actualizamos la interfaz para usar dayOfWeek
+interface Clase { id: string; nombre: string; laboratorio: string; horario: string; status?: string; dayOfWeek: number; }
 interface Laboratorio { id: number; name: string; }
 
 const HORAS_24 = Array.from({ length: 24 }, (_, i) => `${i}:00- ${i + 1}:00`);
 const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+// Función helper para convertir el número de PostgreSQL (1-7) a Nombre de Día
+const getNombreDia = (dayOfWeek?: number) => {
+  if (!dayOfWeek) return '';
+  return dayOfWeek === 7 ? 'Domingo' : mapaDias[dayOfWeek];
+};
 
 export default function SailAdminDashboard() {
   const [usuarioActivo, setUsuarioActivo] = useState<{id: string, name: string, role: string} | null>(null);
@@ -23,14 +30,12 @@ export default function SailAdminDashboard() {
     });
   }, []);
 
-  const isMaestro = usuarioActivo?.role === 'MAESTRO';// Ejemplo de cómo usar el rol para mostrar u ocultar elementos
+  const isMaestro = usuarioActivo?.role === 'MAESTRO';
 
   const [activeTab, setActiveTab] = useState('Inicio');
   const [clases, setClases] = useState<Clase[]>([]);
   const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
   
-  // === ESTADO DEL SELECTOR DE DÍAS ===
-  // Inicializa con el día actual automáticamente
   const [diaFiltro, setDiaFiltro] = useState(() => {
     const hoy = new Date();
     return mapaDias[hoy.getDay()];
@@ -47,14 +52,13 @@ export default function SailAdminDashboard() {
   const [incidencias, setIncidencias] = useState<any[]>([]);
   const [editStatus, setEditStatus] = useState('ACTIVE');
 
-  // Lógica para detectar qué horas están ocupadas (excluyendo la clase que estamos editando)
   const labNombreEdicion = laboratorios.find(l => l.id.toString() === editLab)?.name;
   
   const horariosOcupadosEdicion = clases
     .filter(c => {
-      // Filtramos por el mismo laboratorio y mismo día, pero ignoramos la clase actual
-      const diaClase = mapaDias[new Date(c.startTime).getDay()];
-      const diaDeLaClaseEditada = claseSeleccionada ? mapaDias[new Date(claseSeleccionada.startTime).getDay()] : '';
+      // 2. Usamos nuestra función getNombreDia en lugar de new Date(startTime)
+      const diaClase = getNombreDia(c.dayOfWeek);
+      const diaDeLaClaseEditada = claseSeleccionada ? getNombreDia(claseSeleccionada.dayOfWeek) : '';
       return c.id !== claseSeleccionada?.id && c.laboratorio === labNombreEdicion && diaClase === diaDeLaClaseEditada;
     })
     .flatMap(c => {
@@ -67,7 +71,6 @@ export default function SailAdminDashboard() {
       return bloques;
     });
 
-  // Función para verificar disponibilidad en el Modal
   const esDisponibleEdicion = (bloqueStr: string, duracionHoras: number): boolean => {
     const horaInicio = parseInt(bloqueStr.split(':')[0]);
     for (let i = 0; i < duracionHoras; i++) {
@@ -77,12 +80,9 @@ export default function SailAdminDashboard() {
     return true;
   };
 
-  // Función para descargar toda la info
   const cargarDatosBD = async () => {
-    // Generamos un número único (la hora actual en milisegundos)
     const timestamp = new Date().getTime();
 
-    // Le agregamos '?t=numero' a la URL para obligar a Next.js a traer datos frescos
     const resClases = await fetch(`/api/clases?t=${timestamp}`, { cache: 'no-store' });
     if (resClases.ok) setClases(await resClases.json());
 
@@ -93,19 +93,13 @@ export default function SailAdminDashboard() {
     if (resInc.ok) setIncidencias(await resInc.json());
   };
 
-// === RADAR DE ACTUALIZACIÓN (POLLING) ===
   useEffect(() => {
-    // Carga los datos inmediatamente cuando el usuario entra
     cargarDatosBD();
-
-    // Configura un temporizador silencioso que revisa cambios cada 5 segundos
     const radar = setInterval(() => {
       cargarDatosBD();
-    }, 5000); // 5000 milisegundos = 5 segundos
-
-    // Si el usuario cierra sesión o la pestaña, apagamos el radar
+    }, 5000);
     return () => clearInterval(radar);
-  }, []); // Los corchetes vacíos son clave para que no se duplique el radar
+  }, []);
 
   const handleCrearClase = async (datosClase: any) => {
     await fetch('/api/clases', {
@@ -115,7 +109,6 @@ export default function SailAdminDashboard() {
     });
     await cargarDatosBD(); 
     
-    // Cambiamos el calendario al día de la clase que acabamos de crear para que el usuario la vea
     setDiaFiltro(datosClase.dia);
     setActiveTab('Inicio'); 
   };
@@ -129,7 +122,6 @@ export default function SailAdminDashboard() {
     setEditHorario(clase.horario);
     setEditStatus(clase.status || 'ACTIVE');
     
-    // Calculamos la duración original
     const hI = parseInt(clase.horario.split('-')[0]);
     const hF = parseInt(clase.horario.split('-')[1]);
     setEditDuracion(hF - hI);
@@ -140,13 +132,11 @@ export default function SailAdminDashboard() {
     setMostrarConfirmacion(false);
   };
 
-  // Abre el modal de confirmación
   const handleIntentarEliminar = (e: React.MouseEvent) => {
     e.preventDefault();
     setMostrarConfirmacion(true);
   };
 
-  // Va a la base de datos a destruir la clase
   const confirmarEliminacion = async () => {
     if (!claseSeleccionada) return;
     setGuardandoEdicion(true);
@@ -195,7 +185,6 @@ export default function SailAdminDashboard() {
     }
 
     setGuardandoEdicion(true);
-    const diaClase = mapaDias[new Date(claseSeleccionada.startTime).getDay()];
     
     try {
         const res = await fetch('/api/clases', {
@@ -207,7 +196,8 @@ export default function SailAdminDashboard() {
           laboratorioId: editLab,
           horario: editHorario,
           duracion: editDuracion, 
-          dia: mapaDias[new Date(claseSeleccionada!.startTime).getDay()],
+          // 3. Usamos getNombreDia para el payload de edición
+          dia: getNombreDia(claseSeleccionada!.dayOfWeek),
           status: editStatus
         })
       });
@@ -226,9 +216,8 @@ export default function SailAdminDashboard() {
     }
   };
 
-  // === LÓGICA DE FILTRADO VISUAL DINÁMICO ===
-  // Filtramos las clases y métricas dependiendo del día que el usuario seleccionó (diaFiltro)
-  const clasesDelDia = clases.filter(c => mapaDias[new Date(c.startTime).getDay()] === diaFiltro);
+  // 4. Filtramos las clases comparando nuestro getNombreDia con el filtro actual
+  const clasesDelDia = clases.filter(c => getNombreDia(c.dayOfWeek) === diaFiltro);
   const salonesOcupados = new Set(clasesDelDia.map(c => c.laboratorio)).size;
 
   const renderizarCelda = (hora: string, nombreLab: string) => {
@@ -252,18 +241,15 @@ export default function SailAdminDashboard() {
       );
     }
 
-    // Evaluamos el estado
     const esMantenimiento = encontrada.status === 'MAINTENANCE';
 
     return (
       <button 
-        // Solo abrimos el modal si NO es maestro
         onClick={() => !isMaestro && handleAbrirModal(encontrada)}
-        // MAGIA VISUAL: Aplicamos el fondo GRIS si está en mantenimiento, o AZUL si es clase normal
         className={`w-full h-full min-h-[50px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-colors focus:outline-none 
           ${esMantenimiento 
-            ? 'bg-gray-500 border-gray-600' // <-- COLOR GRIS
-            : 'bg-blue-600 border-blue-500' // <-- COLOR AZUL NORMAL
+            ? 'bg-gray-500 border-gray-600' 
+            : 'bg-blue-600 border-blue-500' 
           } 
           ${!isMaestro 
             ? (esMantenimiento ? 'hover:bg-gray-600 cursor-pointer' : 'hover:bg-blue-700 cursor-pointer') 
@@ -272,18 +258,15 @@ export default function SailAdminDashboard() {
         `}
       >
         {esMantenimiento ? (
-          // Vista cuando está en mantenimiento
           <>
             <span className="text-[10px] font-bold leading-tight uppercase tracking-wider text-gray-100 text-center">
               En Mantenimiento
             </span>
           </>
         ) : (
-          // Vista cuando es una clase normal
           <span className="text-xs font-bold leading-tight text-center">{encontrada.nombre}</span>
         )}
         
-        {/* Etiqueta de edición (solo para admins/auxiliares) */}
         {!isMaestro && (
           <span className="text-[9px] mt-1 opacity-80 text-white/70">
             (Editar)
@@ -295,14 +278,11 @@ export default function SailAdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      {/* Navbar */}
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
         <div className="flex space-x-8">
           {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Incidencias'].map(t => {
-           // Si es MAESTRO, ocultar todo excepto "Inicio"
           if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
 
-            // Si es Auxiliar, ocultar las pestañas de "Administradores" y "Auxiliares"
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
 
             return (
@@ -338,7 +318,6 @@ export default function SailAdminDashboard() {
       <main className="max-w-7xl mx-auto p-8">
         {activeTab === 'Inicio' && (
           <div className="space-y-8">
-            {/* Saludo */}
             <div>
               <h1 className="text-3xl font-bold text-gray-800">
                 Hola, {usuarioActivo ? usuarioActivo.name.split(' ')[0] : 'Cargando...'}
@@ -346,10 +325,8 @@ export default function SailAdminDashboard() {
               <p className="text-sm text-gray-600 mt-1">Resúmenes de operaciones de laboratorio</p>
             </div>
 
-            {/* Tarjetas de métricas adaptables por rol */}
             <div className={`grid gap-6 ${isMaestro ? 'grid-cols-2' : 'grid-cols-3'}`}>
               
-              {/* Tarjeta 1: Clases (Todos la ven) */}
               <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
                 <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
                   Clases ({diaFiltro})
@@ -360,7 +337,6 @@ export default function SailAdminDashboard() {
                 </div>
               </div>
 
-              {/* Tarjeta 2: Salones ocupados (OCULTA PARA MAESTROS) */}
               {!isMaestro && (
                 <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
                   <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
@@ -375,14 +351,12 @@ export default function SailAdminDashboard() {
                 </div>
               )}
 
-              {/* Tarjeta 3: Incidencias (Cambia su texto y conteo si es Maestro) */}
               <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
                 <div className="bg-yellow-500 text-white px-4 py-2 text-sm font-bold">
                   {isMaestro ? 'Mis fallas reportadas' : 'Notas de maestros'}
                 </div>
                 <div className="bg-yellow-500 px-4 py-6 text-white">
                   <div className="text-5xl font-bold">
-                    {/* Si es maestro, solo cuenta sus propios reportes pendientes. Si es Admin, cuenta todos. */}
                     {isMaestro 
                       ? incidencias.filter(i => i.status === 'PENDING' && i.reportador === usuarioActivo?.name).length 
                       : incidencias.filter(i => i.status === 'PENDING').length
@@ -396,7 +370,6 @@ export default function SailAdminDashboard() {
 
             </div>
 
-            {/* Horario Visual */}
             <div className="bg-white rounded-sm border border-gray-200 shadow-sm">
               <div className="flex flex-col md:flex-row md:items-center justify-between px-6 py-4 border-b border-gray-200 gap-4">
                 <div>
@@ -407,7 +380,6 @@ export default function SailAdminDashboard() {
                   <p className="text-xs text-gray-500 mt-1">Disponibilidad para: <strong className="text-[#0b6e3f]">{diaFiltro}</strong></p>
                 </div>
 
-                {/* SELECTOR DE DÍAS ESTILO BOTONERA */}
                 <div className="flex bg-gray-100 p-1 rounded-sm border border-gray-200 overflow-x-auto">
                   {mapaDias.map(d => (
                     <button 
@@ -470,7 +442,6 @@ export default function SailAdminDashboard() {
           />
         )}
 
-        {/* Renderizado dinámico de Gestión de Usuarios */}
         {activeTab === 'Maestros' && (
           <GestionUsuarios rolDestino="MAESTRO" usuarioActivoId={usuarioActivo?.id} />
         )}
@@ -485,7 +456,6 @@ export default function SailAdminDashboard() {
 
         {activeTab === 'Incidencias' && (
           <GestionIncidencias 
-            // Filtramos el arreglo antes de que el componente lo dibuje
             incidencias={isMaestro ? incidencias.filter(i => i.reportador === usuarioActivo?.name) : incidencias} 
             clases={clases} 
             usuarioActivo={usuarioActivo} 
@@ -494,10 +464,8 @@ export default function SailAdminDashboard() {
         )}
       </main>
 
-      {/* ================= MODAL DE EDICIÓN ================= */}
       {claseSeleccionada && (
         <>
-          {/* MODAL PRINCIPAL DE EDICIÓN */}
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <div className="bg-white rounded-md shadow-2xl w-full max-w-md overflow-hidden">
               <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b">
@@ -513,7 +481,6 @@ export default function SailAdminDashboard() {
               </div>
               
               <div className="p-6 space-y-4">
-                {/* Nombre */}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Nombre</label>
                   <input 
@@ -537,11 +504,10 @@ export default function SailAdminDashboard() {
                   )}
                 </div>
 
-                {/* Estado de la Sesión */}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Estado de la Sesión</label>
                   <select 
-                    value={editStatus} // Crea un nuevo useState para esto: [editStatus, setEditStatus]
+                    value={editStatus} 
                     onChange={(e) => setEditStatus(e.target.value)}
                     className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black"
                   >
@@ -550,7 +516,6 @@ export default function SailAdminDashboard() {
                   </select>
                 </div>
 
-                {/* Laboratorio y Duración */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Laboratorio</label>
@@ -589,7 +554,6 @@ export default function SailAdminDashboard() {
                   </div>
                 </div>
 
-                {/* Horario con lógica de bloqueo */}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Bloque Horario</label>
                   <select 
@@ -626,7 +590,6 @@ export default function SailAdminDashboard() {
                 </div>
               </div>
 
-              {/* Botones del Modal Principal */}
               <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">
                 <button 
                   onClick={handleIntentarEliminar} 
@@ -668,7 +631,6 @@ export default function SailAdminDashboard() {
             </div>
           </div>
 
-          {/* SUB-MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
           {mostrarConfirmacion && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
               <div className="bg-white rounded-md shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center transform transition-all">

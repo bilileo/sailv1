@@ -16,6 +16,11 @@ export default function Login() {
     setLoading(true);
     setError('');
 
+    // Verificamos cual es el hash al que se transformará la contraseña ingresada para debug
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash(password, 10);
+    console.log("Hash de la contraseña ingresada:", hash);
+
     const res = await signIn('credentials', {
       email,
       password,

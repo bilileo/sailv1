@@ -1,28 +1,20 @@
 import { NextResponse } from 'next/server';
-import sql from 'mssql';
+import { createClient } from '@supabase/supabase-js';
 
-const dbConfig = {
-  user: 'sa', 
-  password: 'admin123',
-  server: 'localhost',
-  database: 'SAIL_DB',
-  options: { encrypt: false, trustServerCertificate: true }
-};
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export async function GET() {
   try {
-    const pool = await sql.connect(dbConfig);
-    // Traemos todos los usuarios con rol MAESTRO
-    const result = await pool.request().query(`
-      SELECT id, name 
-      FROM [User] 
-      WHERE role = 'MAESTRO' 
-      ORDER BY name
-    `);
-    return NextResponse.json(result.recordset);
+    const { data, error } = await supabase
+      .from('User')
+      .select('id, name')
+      .eq('role', 'MAESTRO')
+      .order('name');
+      
+    if (error) throw error;
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("Error SQL Maestros:", error);
+    console.error("Error Supabase Maestros:", error);
     return NextResponse.json({ error: 'Error al obtener maestros' }, { status: 500 });
   }
 }
-

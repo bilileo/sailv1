@@ -1,31 +1,38 @@
 import { NextResponse } from 'next/server';
-import sql from 'mssql';
-import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
 
-const dbConfig = {
-  user: 'sa', password: 'admin123', server: 'localhost', database: 'SAIL_DB',
-  options: { encrypt: false, trustServerCertificate: true }
-};
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function GET() {
   try {
-    const pool = await sql.connect(dbConfig);
-    const result = await pool.request().query(`
-      SELECT 
-        i.id, i.message, i.status, i.createdAt, 
-        i.classSessionId, i.reportedById, 
-        c.subjectName as clase, 
-        l.name as laboratorio,
-        u.name as reportador
-      FROM Incident i
-      INNER JOIN ClassSession c ON i.classSessionId = c.id
-      INNER JOIN Laboratory l ON c.laboratoryId = l.id
-      INNER JOIN [User] u ON i.reportedById = u.id
-      ORDER BY 
-        CASE WHEN i.status = 'PENDING' THEN 1 ELSE 2 END, 
-        i.createdAt DESC
-    `);
-    return NextResponse.json(result.recordset);
+    const { data, error } = await supabase
+      .from('Incident')
+      .select(`
+        id, title, description, status, createdat, classsessionid, reportedbyid,
+        ClassSession ( subject, Laboratory ( name ) ),
+        User ( name )
+      `)
+      .order('status', { ascending: false })
+      .order('createdat', { ascending: false });
+
+    if (error) throw error;
+
+    const formattedData = data.map((i: any) => ({
+      id: i.id,
+      title: i.title,
+      message: i.description,
+      status: i.status,
+      createdAt: i.createdat,             
+      classSessionId: i.classsessionid,   
+      reportedById: i.reportedbyid,       
+      clase: i.ClassSession?.subject,
+      laboratorio: i.ClassSession?.Laboratory?.name,
+      reportador: i.User?.name
+    }));
+
+    return NextResponse.json(formattedData);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -34,16 +41,18 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const pool = await sql.connect(dbConfig);
-    const id = crypto.randomUUID();
 
-    await pool.request()
-      .input('id', sql.VarChar(36), id)
-      .input('classSessionId', sql.VarChar(36), data.classSessionId)
-      .input('reportedById', sql.VarChar(36), data.reportedById)
-      .input('message', sql.NVarChar(sql.MAX), data.message)
-      .query('INSERT INTO Incident (id, classSessionId, reportedById, message) VALUES (@id, @classSessionId, @reportedById, @message)');
+    const { error } = await supabase
+      .from('Incident')
+      .insert([{
+        classsessionid: data.classSessionId, 
+        reportedbyid: data.reportedById,     
+        title: data.title || 'Incidencia Reportada', 
+        description: data.message, 
+        status: 'PENDING'
+      }]);
 
+    if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -53,23 +62,24 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const data = await request.json();
-    const pool = await sql.connect(dbConfig);
-
+    
+    let updatePayload: any = {};
     if (data.status) {
-      // Marcar como resuelto
-      await pool.request()
-        .input('id', sql.VarChar(36), data.id)
-        .input('status', sql.VarChar(50), data.status)
-        .query('UPDATE Incident SET status = @status WHERE id = @id');
+      updatePayload = { status: data.status };
     } else {
-      // Editar el texto/clase de la falla
-      await pool.request()
-        .input('id', sql.VarChar(36), data.id)
-        .input('classSessionId', sql.VarChar(36), data.classSessionId)
-        .input('message', sql.NVarChar(sql.MAX), data.message)
-        .query('UPDATE Incident SET classSessionId = @classSessionId, message = @message WHERE id = @id');
+      updatePayload = { 
+        classsessionid: data.classSessionId, 
+        title: data.title || 'Incidencia Actualizada',
+        description: data.message 
+      };
     }
 
+    const { error } = await supabase
+      .from('Incident')
+      .update(updatePayload)
+      .eq('id', data.id);
+
+    if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -80,12 +90,12 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const pool = await sql.connect(dbConfig);
-    
-    await pool.request()
-      .input('id', sql.VarChar(36), id)
-      .query('DELETE FROM Incident WHERE id = @id');
-      
+
+    if (!id) return NextResponse.json({ error: 'ID no proporcionado' }, { status: 400 });
+
+    const { error } = await supabase.from('Incident').delete().eq('id', id);
+    if (error) throw error;
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -1,24 +1,29 @@
 import { NextResponse } from 'next/server';
-import sql from 'mssql';
+import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 
-const dbConfig = {
-  user: 'sa', password: 'admin123', server: 'localhost', database: 'SAIL_DB',
-  options: { encrypt: false, trustServerCertificate: true }
-};
+// Inicializar el cliente de Supabase
+// Usamos el service role key en el backend (si está disponible) para tener acceso total a las tablas
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const role = searchParams.get('role'); // Recibimos si queremos MAESTRO, ADMIN, etc.
+    const role = searchParams.get('role');
     
-    const pool = await sql.connect(dbConfig);
-    const result = await pool.request()
-      .input('role', sql.VarChar(50), role)
-      .query('SELECT id, name, email, role FROM [User] WHERE role = @role');
+    // Construimos la consulta
+    let query = supabase.from('User').select('id, name, email, role');
+    
+    if (role) {
+      query = query.eq('role', role);
+    }
       
-    return NextResponse.json(result.recordset);
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return NextResponse.json(data);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -27,22 +32,30 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const pool = await sql.connect(dbConfig);
-    
-    const id = crypto.randomUUID();
     const hash = await bcrypt.hash(data.password, 10);
 
-    await pool.request()
-      .input('id', sql.VarChar(36), id)
-      .input('name', sql.NVarChar(255), data.name)
-      .input('email', sql.NVarChar(255), data.email)
-      .input('role', sql.VarChar(50), data.role)
-      .input('pass', sql.NVarChar(255), hash)
-      .query('INSERT INTO [User] (id, name, email, role, passwordHash) VALUES (@id, @name, @email, @role, @pass)');
+    const { error } = await supabase
+      .from('User')
+      .insert([
+        { 
+          // Eliminamos la línea donde se mandaba el "id"
+          name: data.name, 
+          email: data.email, 
+          role: data.role, 
+          password: hash // Asegúrate de usar 'password' como dice tu esquema SQL, no 'passwordHash'
+        }
+      ]);
+
+    if (error) {
+      // 23505 es el código de PostgreSQL para una violación de clave única (Unique Violation)
+      if (error.code === '23505') {
+         return NextResponse.json({ error: 'El correo ya está registrado' }, { status: 400 });
+      }
+      throw error;
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    if (error.message.includes('UQ_User_email')) return NextResponse.json({ error: 'El correo ya está registrado' }, { status: 400 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -50,22 +63,25 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const data = await request.json();
-    const pool = await sql.connect(dbConfig);
     
-    let query = 'UPDATE [User] SET name = @name, email = @email WHERE id = @id';
-    const req = pool.request()
-      .input('id', sql.VarChar(36), data.id)
-      .input('name', sql.NVarChar(255), data.name)
-      .input('email', sql.NVarChar(255), data.email);
+    const updatePayload: any = {
+      name: data.name,
+      email: data.email
+    };
 
     // Si mandó contraseña nueva, la actualizamos también
     if (data.password) {
       const hash = await bcrypt.hash(data.password, 10);
-      query = 'UPDATE [User] SET name = @name, email = @email, passwordHash = @pass WHERE id = @id';
-      req.input('pass', sql.NVarChar(255), hash);
+      updatePayload.passwordHash = hash;
     }
 
-    await req.query(query);
+    const { error } = await supabase
+      .from('User')
+      .update(updatePayload)
+      .eq('id', data.id);
+
+    if (error) throw error;
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -76,18 +92,24 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const pool = await sql.connect(dbConfig);
     
-    await pool.request()
-      .input('id', sql.VarChar(36), id)
-      .query('DELETE FROM [User] WHERE id = @id');
+    if (!id) throw new Error('ID no proporcionado');
+
+    const { error } = await supabase
+      .from('User')
+      .delete()
+      .eq('id', id);
       
+    if (error) {
+      // 23503 es el código de PostgreSQL para una violación de llave foránea (Foreign Key Violation)
+      if (error.code === '23503') {
+        return NextResponse.json({ error: 'No se puede eliminar porque tiene clases asignadas.' }, { status: 400 });
+      }
+      throw error;
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    // Validación de integridad referencial (QA Win)
-    if (error.message.includes('REFERENCE constraint')) {
-      return NextResponse.json({ error: 'No se puede eliminar porque tiene clases asignadas.' }, { status: 400 });
-    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
