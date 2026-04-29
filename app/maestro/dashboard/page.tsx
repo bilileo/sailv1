@@ -1,23 +1,188 @@
 // app/page.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, LogOut, Users, X, Clock, QrCode } from 'lucide-react';
 import { getStudents, updateStudentStatus, deleteStudent, updateActiveCode } from './actions';
 import { Student, StudentStatus } from '@/app/lib/db';
+import { getSession, signOut } from 'next-auth/react';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 const CODE_REFRESH_INTERVAL = 10; // Segundos
+
+const getDiaJs = (dayOfWeek?: number) => {
+  if (!dayOfWeek) return null;
+  return dayOfWeek === 7 ? 0 : dayOfWeek;
+};
+
+const parseHorario = (horario?: string) => {
+  if (!horario) return null;
+  const partes = horario.split('-');
+  if (partes.length < 2) return null;
+  const startHour = parseInt(partes[0].trim().split(':')[0]);
+  const endHour = parseInt(partes[1].trim().split(':')[0]);
+  if (Number.isNaN(startHour) || Number.isNaN(endHour)) return null;
+  return { startHour, endHour };
+};
+
+const getMinutesNow = (fecha: Date) => fecha.getHours() * 60 + fecha.getMinutes();
 
 // Función auxiliar: Genera un código alfanumérico aleatorio de 6 caracteres
 const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
 export default function TeacherDashboard() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const classId = searchParams.get('classId');
+
   // === ESTADOS DEL COMPONENTE ===
   const [students, setStudents] = useState<Student[]>([]);
   const [currentCode, setCurrentCode] = useState<string>('------');
   const [timeLeft, setTimeLeft] = useState(CODE_REFRESH_INTERVAL);
-  const [classStatus, setClassStatus] = useState<'inProgress' | 'finished'>('inProgress');
+  const [classStatus, setClassStatus] = useState<'scheduled' | 'inProgress' | 'finished'>('scheduled');
   const [openReportFor, setOpenReportFor] = useState<string | null>(null);
+  const [usuarioActivo, setUsuarioActivo] = useState<{ id: string; name: string; role: string } | null>(null);
+  const [claseInfo, setClaseInfo] = useState<any | null>(null);
+  const [maestroNombre, setMaestroNombre] = useState('');
+  const [cargandoClase, setCargandoClase] = useState(false);
+  const [claseNoEncontrada, setClaseNoEncontrada] = useState(false);
+  const isMaestro = usuarioActivo?.role === 'MAESTRO';
+  const [faseClase, setFaseClase] = useState<'scheduled' | 'inProgress' | 'ended'>('scheduled');
+
+  useEffect(() => {
+    getSession().then(session => {
+      if (session?.user) setUsuarioActivo(session.user as any);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!classId) {
+      setClaseInfo(null);
+      setMaestroNombre('');
+      setClaseNoEncontrada(false);
+      return;
+    }
+
+    const cargarClase = async () => {
+      setCargandoClase(true);
+      setClaseNoEncontrada(false);
+
+      const timestamp = new Date().getTime();
+      const resClases = await fetch(`/api/clases?t=${timestamp}`, { cache: 'no-store' });
+
+      if (!resClases.ok) {
+        setClaseInfo(null);
+        setMaestroNombre('');
+        setClaseNoEncontrada(true);
+        setCargandoClase(false);
+        return;
+      }
+
+      const data = await resClases.json();
+      const encontrada = data.find((c: any) => String(c.id) === String(classId)) || null;
+
+      if (!encontrada) {
+        setClaseInfo(null);
+        setMaestroNombre('');
+        setClaseNoEncontrada(true);
+        setCargandoClase(false);
+        return;
+      }
+
+      setClaseInfo(encontrada);
+
+      if (encontrada.maestroId) {
+        const resMaestros = await fetch(`/api/maestros?t=${timestamp}`, { cache: 'no-store' });
+        if (resMaestros.ok) {
+          const maestros = await resMaestros.json();
+          const maestro = maestros.find((m: any) => m.id === encontrada.maestroId);
+          setMaestroNombre(maestro?.name || usuarioActivo?.name || '');
+        } else {
+          setMaestroNombre(usuarioActivo?.name || '');
+        }
+      } else {
+        setMaestroNombre(usuarioActivo?.name || '');
+      }
+
+      setCargandoClase(false);
+    };
+
+    cargarClase();
+  }, [classId, usuarioActivo?.name]);
+
+  const actualizarEstadoClase = async (nuevoEstado: 'ENDED' | 'ACTIVE') => {
+    if (!claseInfo?.id) return;
+    await fetch('/api/clases', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: claseInfo.id, status: nuevoEstado })
+    });
+    setClaseInfo((prev: any) => (prev ? { ...prev, status: nuevoEstado } : prev));
+  };
+
+  useEffect(() => {
+    if (!claseInfo) return;
+
+    const evaluarFase = async () => {
+      if (claseInfo.status === 'ENDED') {
+        setFaseClase('ended');
+        setClassStatus('finished');
+        return;
+      }
+
+      const horario = parseHorario(claseInfo.horario);
+      const diaClase = getDiaJs(claseInfo.dayOfWeek);
+      const hoy = new Date();
+
+      if (diaClase === null || !horario) {
+        setFaseClase('scheduled');
+        setClassStatus('scheduled');
+        return;
+      }
+
+      const hoyDia = hoy.getDay();
+      if (diaClase < hoyDia) {
+        setFaseClase('ended');
+        setClassStatus('finished');
+        if (claseInfo.status !== 'ENDED') {
+          await actualizarEstadoClase('ENDED');
+        }
+        return;
+      }
+
+      if (diaClase > hoyDia) {
+        setFaseClase('scheduled');
+        setClassStatus('scheduled');
+        return;
+      }
+
+      const ahora = getMinutesNow(hoy);
+      const inicio = horario.startHour * 60;
+      const fin = horario.endHour * 60;
+
+      if (ahora < inicio) {
+        setFaseClase('scheduled');
+        setClassStatus('scheduled');
+        return;
+      }
+
+      if (ahora >= fin) {
+        setFaseClase('ended');
+        setClassStatus('finished');
+        if (claseInfo.status !== 'ENDED') {
+          await actualizarEstadoClase('ENDED');
+        }
+        return;
+      }
+
+      setFaseClase('inProgress');
+      setClassStatus('inProgress');
+    };
+
+    evaluarFase();
+    const interval = setInterval(evaluarFase, 30000);
+    return () => clearInterval(interval);
+  }, [claseInfo]);
 
   // === CARGA INICIAL Y POLLING DE DATOS (TIEMPO REAL SIMULADO) ===
   useEffect(() => {
@@ -45,8 +210,8 @@ export default function TeacherDashboard() {
   // === MOTOR DEL CÓDIGO DINÁMICO ===
   // Este Effect maneja la rotación del código cada 10 segundos
   useEffect(() => {
-    if (classStatus === 'finished') {
-      updateActiveCode(null); // Limpiamos el código en el servidor al terminar
+    if (classStatus !== 'inProgress') {
+      updateActiveCode(null); // Limpiamos el código en el servidor al terminar o antes de iniciar
       return;
     }
 
@@ -74,7 +239,9 @@ export default function TeacherDashboard() {
 
   // === MANEJADORES DE EVENTOS (HANDLERS) ===
 
-  const finalizeClass = () => {
+  const finalizeClass = async () => {
+    await actualizarEstadoClase('ENDED');
+    setFaseClase('ended');
     setClassStatus('finished');
     setTimeLeft(0);
     setCurrentCode('------');
@@ -109,16 +276,38 @@ export default function TeacherDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] text-gray-900 font-sans pb-10">
-      <nav className="flex justify-between items-center px-6 py-3 bg-white border-b border-gray-300">
-        <div className="text-gray-700 font-medium">Inicio</div>
-        <div className="flex items-center space-x-6">
-          <div className="flex items-center space-x-2 text-gray-800 font-medium">
-            <User size={20} className="text-gray-900" />
-            <span>Luis Vizcarra (Maestro)</span>
+      <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
+        <div className="flex space-x-8">
+          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Incidencias'].map(t => {
+            if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
+
+            if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
+
+            return (
+              <button
+                key={t}
+                onClick={() => router.push('/')}
+                className="text-sm font-bold transition-colors text-gray-500 hover:text-gray-700"
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center space-x-4 text-sm font-bold">
+          <div className="flex items-center text-gray-700">
+            <User className="w-4 h-4 mr-2" />
+            {usuarioActivo ? `${usuarioActivo.name} (${usuarioActivo.role})` : 'Cargando...'}
           </div>
-          <button className="flex items-center space-x-1 text-red-500 hover:text-red-700 transition-colors font-medium">
+          <button
+            onClick={async () => {
+              await signOut({ redirect: false });
+              window.location.href = '/login';
+            }}
+            className="text-red-500 hover:text-red-700 flex items-center space-x-1"
+          >
+            <LogOut className="w-4 h-4" />
             <span>Cerrar Sesion</span>
-            <LogOut size={18} />
           </button>
         </div>
       </nav>
@@ -128,16 +317,31 @@ export default function TeacherDashboard() {
         <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-6 gap-4">
           <div>
             <div className="flex items-center space-x-4 mb-2">
-              <span className={`${classStatus === 'inProgress' ? 'bg-[#2e8b57]' : 'bg-gray-600'} text-white px-3 py-1 rounded text-sm font-bold tracking-wide shadow-sm`}>
-                {classStatus === 'inProgress' ? 'En curso' : 'Finalizado'}
+              <span className={`${faseClase === 'ended' ? 'bg-red-600' : faseClase === 'inProgress' ? 'bg-[#2e8b57]' : 'bg-gray-600'} text-white px-3 py-1 rounded text-sm font-bold tracking-wide shadow-sm`}>
+                {faseClase === 'scheduled' ? 'Programada' : faseClase === 'inProgress' ? 'En curso' : 'Finalizado'}
               </span>
-              <h1 className="text-2xl font-bold">Admón. Base de Datos</h1>
+              <h1 className="text-2xl font-bold">{claseInfo?.nombre || 'Clase sin seleccionar'}</h1>
+            </div>
+            <div className="text-sm text-gray-600">
+              {cargandoClase && <span>Cargando datos de clase...</span>}
+              {!cargandoClase && claseNoEncontrada && (
+                <span>No se encontro la clase o no tienes acceso.</span>
+              )}
+              {!cargandoClase && !claseNoEncontrada && (
+                <span>
+                  {claseInfo?.laboratorio ? `Laboratorio: ${claseInfo.laboratorio}` : 'Laboratorio: ---'}
+                  {' · '}
+                  {maestroNombre ? `Maestro: ${maestroNombre}` : 'Maestro: ---'}
+                  {' · '}
+                  {claseInfo?.status ? `Estado: ${claseInfo.status}` : 'Estado: ---'}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex flex-col items-end space-y-2">
             <button
               onClick={finalizeClass}
-              disabled={classStatus === 'finished'}
+              disabled={faseClase === 'ended'}
               className="bg-[#d9534f] hover:bg-red-700 disabled:bg-gray-400 text-white px-4 py-2 rounded shadow-sm text-sm font-medium"
             >
               Finalizar Clase ahora
@@ -166,7 +370,11 @@ export default function TeacherDashboard() {
                 />
               </div>
               <span className="text-xs text-gray-400">
-                {classStatus === 'inProgress' ? `Cambia en ${timeLeft}s` : 'Clase finalizada'}
+                {classStatus === 'inProgress'
+                  ? `Cambia en ${timeLeft}s`
+                  : classStatus === 'scheduled'
+                  ? 'Clase programada'
+                  : 'Clase finalizada'}
               </span>
             </div>
           </div>

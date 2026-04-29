@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from('ClassSession')
       .select('id, teacherid, status, subject, starttime, endtime, dayofweek, Laboratory(name)')
-      .eq('status', 'ACTIVE');
+      .in('status', ['ACTIVE', 'ENDED']);
 
     if (token.role === 'MAESTRO') {
       query = query.eq('teacherid', token.id);
@@ -88,6 +88,16 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
+
+    if (body.status && !body.horario && !body.laboratorioId && !body.nombre && !body.dia) {
+      const { error } = await supabase
+        .from('ClassSession')
+        .update({ status: body.status })
+        .eq('id', body.id);
+
+      if (error) throw error;
+      return NextResponse.json({ success: true });
+    }
     
     const mapaDiasPostgres: any = { 'Lunes': 1, 'Martes': 2, 'Miércoles': 3, 'Jueves': 4, 'Viernes': 5, 'Sábado': 6, 'Domingo': 7 };
     const dayOfWeek = mapaDiasPostgres[body.dia] || 1;

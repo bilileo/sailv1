@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
 import { FormularioClase } from './FormularioClase';
 import { GestionUsuarios } from './GestionUsuarios';
@@ -22,6 +23,7 @@ const getNombreDia = (dayOfWeek?: number) => {
 };
 
 export default function SailAdminDashboard() {
+  const router = useRouter();
   const [usuarioActivo, setUsuarioActivo] = useState<{id: string, name: string, role: string} | null>(null);
 
   useEffect(() => {
@@ -42,6 +44,7 @@ export default function SailAdminDashboard() {
   });
 
   const [claseSeleccionada, setClaseSeleccionada] = useState<Clase | null>(null);
+  const [claseAcciones, setClaseAcciones] = useState<Clase | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editLab, setEditLab] = useState('');
   const [editHorario, setEditHorario] = useState('');
@@ -125,6 +128,26 @@ export default function SailAdminDashboard() {
     const hI = parseInt(clase.horario.split('-')[0]);
     const hF = parseInt(clase.horario.split('-')[1]);
     setEditDuracion(hF - hI);
+  };
+
+  const handleAbrirAcciones = (clase: Clase) => {
+    setClaseAcciones(clase);
+  };
+
+  const handleCerrarAcciones = () => {
+    setClaseAcciones(null);
+  };
+
+  const handleEntrarClase = () => {
+    if (!claseAcciones) return;
+    router.push(`/maestro/dashboard?classId=${encodeURIComponent(claseAcciones.id)}`);
+    setClaseAcciones(null);
+  };
+
+  const handleEditarDesdeAcciones = () => {
+    if (!claseAcciones) return;
+    handleAbrirModal(claseAcciones);
+    setClaseAcciones(null);
   };
 
   const cerrarModalEdicion = () => {
@@ -222,6 +245,10 @@ export default function SailAdminDashboard() {
 
   const renderizarCelda = (hora: string, nombreLab: string) => {
     const horaActual = parseInt(hora.split(':')[0]);
+    const hoyIdx = new Date().getDay();
+    const diaFiltroIdx = mapaDias.indexOf(diaFiltro);
+    const esDiaActual = diaFiltroIdx === hoyIdx;
+    const horaSistema = new Date().getHours();
     
     const encontrada = clasesDelDia.find(c => {
       if (c.laboratorio !== nombreLab) return false;
@@ -235,26 +262,36 @@ export default function SailAdminDashboard() {
 
     if (!encontrada) {
       return (
-        <div className="w-full h-full min-h-[50px] bg-green-700 text-white/60 flex items-center justify-center text-xs border-b border-green-800/50">
+        <div className="w-full h-full min-h-[64px] bg-green-700 text-white/60 flex flex-col items-center justify-center p-2 text-xs border-b border-green-800/50">
           Disponible
         </div>
       );
     }
 
     const esMantenimiento = encontrada.status === 'MAINTENANCE';
+    const esFinalizada = encontrada.status === 'ENDED';
+    const esActiva = encontrada.status === 'ACTIVE';
+
+    const partes = encontrada.horario.split('-');
+    const inicioClase = parseInt(partes[0].trim().split(':')[0]);
+    const finClase = partes[1].trim() === '24:00' ? 24 : parseInt(partes[1].trim().split(':')[0]);
+
+    const esEnCurso = esActiva && esDiaActual && horaSistema >= inicioClase && horaSistema < finClase;
+    const esProgramada = esActiva && !esEnCurso && (!esDiaActual || horaSistema < inicioClase);
 
     return (
       <button 
-        onClick={() => !isMaestro && handleAbrirModal(encontrada)}
-        className={`w-full h-full min-h-[50px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-colors focus:outline-none 
+        onClick={() => handleAbrirAcciones(encontrada)}
+        className={`w-full h-full min-h-[64px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-colors focus:outline-none 
           ${esMantenimiento 
             ? 'bg-gray-500 border-gray-600' 
+            : esFinalizada
+            ? 'bg-red-600 border-red-700'
+            : esProgramada
+            ? 'bg-gray-700 border-gray-800'
             : 'bg-blue-600 border-blue-500' 
           } 
-          ${!isMaestro 
-            ? (esMantenimiento ? 'hover:bg-gray-600 cursor-pointer' : 'hover:bg-blue-700 cursor-pointer') 
-            : 'cursor-default'
-          }
+          ${esMantenimiento ? 'hover:bg-gray-600 cursor-pointer' : esFinalizada ? 'hover:bg-red-700 cursor-pointer' : esProgramada ? 'hover:bg-gray-800 cursor-pointer' : 'hover:bg-blue-700 cursor-pointer'}
         `}
       >
         {esMantenimiento ? (
@@ -263,13 +300,32 @@ export default function SailAdminDashboard() {
               En Mantenimiento
             </span>
           </>
+        ) : esFinalizada ? (
+          <>
+            <span className="text-xs font-bold leading-tight text-center">{encontrada.nombre}</span>
+            <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Finalizada</span>
+          </>
+        ) : esProgramada ? (
+          <>
+            <span className="text-xs font-bold leading-tight text-center">{encontrada.nombre}</span>
+            <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Programada</span>
+          </>
         ) : (
-          <span className="text-xs font-bold leading-tight text-center">{encontrada.nombre}</span>
+          <>
+            <span className="text-xs font-bold leading-tight text-center">{encontrada.nombre}</span>
+            {esEnCurso && (
+              <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">En curso</span>
+            )}
+          </>
         )}
         
-        {!isMaestro && (
+        {!isMaestro ? (
           <span className="text-[9px] mt-1 opacity-80 text-white/70">
-            (Editar)
+            (Acciones)
+          </span>
+        ) : (
+          <span className="text-[9px] mt-1 opacity-80 text-white/70">
+            (Entrar)
           </span>
         )}
       </button>
@@ -669,6 +725,52 @@ export default function SailAdminDashboard() {
             </div>
           )}
         </>
+      )}
+
+      {claseAcciones && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-md shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b">
+              <h3 className="text-lg font-bold text-gray-800">Selecciona una accion</h3>
+              <button
+                onClick={handleCerrarAcciones}
+                className="text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="text-sm text-gray-700">
+                <div className="font-bold text-gray-900">{claseAcciones.nombre}</div>
+                <div className="text-xs text-gray-500">{claseAcciones.laboratorio}</div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {!isMaestro && (
+                  <button
+                    onClick={handleEditarDesdeAcciones}
+                    className="w-full px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                  >
+                    Editar clase
+                  </button>
+                )}
+                <button
+                  onClick={handleEntrarClase}
+                  className="w-full px-4 py-2 text-sm font-bold text-white bg-green-700 hover:bg-green-800 rounded transition-colors"
+                >
+                  Entrar a clase
+                </button>
+                <button
+                  onClick={handleCerrarAcciones}
+                  className="w-full px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <Toaster 
