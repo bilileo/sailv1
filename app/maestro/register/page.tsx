@@ -15,6 +15,8 @@ export default function StudentRegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const codeFromUrl = (searchParams.get('code') ?? '').toUpperCase();
+  const classIdFromUrl = searchParams.get('classId') ?? '';
+  const [classId, setClassId] = useState('');
 
   // Validación inicial rápida usando la sesión de la pantalla anterior
   useEffect(() => {
@@ -27,22 +29,30 @@ export default function StudentRegisterPage() {
     try {
       const access = JSON.parse(rawAccess);
       if (access.code !== codeFromUrl) throw new Error('Mismatch');
+      setClassId(access.classId || classIdFromUrl);
       setIsAuthorized(true);
     } catch {
       router.replace('/maestro/join');
     }
-  }, [codeFromUrl, router]);
+  }, [codeFromUrl, classIdFromUrl, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id.trim() || !name.trim()) return;
 
     // Llamamos a la Server Action para escribir en el JSON
+    const resolvedClassId = classId || classIdFromUrl;
+    if (!resolvedClassId) {
+      setError('No se pudo determinar la clase para esta asistencia.');
+      return;
+    }
+
     const result = await registerStudent({
       id: id.trim(),
       name: name.trim(),
       code: codeFromUrl,
       registeredAt: new Date().toISOString(),
+      classId: resolvedClassId,
     });
 
     if (result.success) {

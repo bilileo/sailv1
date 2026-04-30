@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { KeyRound, ArrowRight } from 'lucide-react';
-import { getActiveCode } from '../dashboard/actions'; // Ajusta la ruta si moviste actions.ts
+import { validateActiveCode } from '../dashboard/actions'; // Ajusta la ruta si moviste actions.ts
 
 export default function JoinClassPage() {
   const [code, setCode] = useState('');
@@ -23,19 +23,19 @@ export default function JoinClassPage() {
     }
 
     // Consultamos el código directamente al servidor (archivo JSON)
-    const activeCode = await getActiveCode();
+    const classId = await validateActiveCode(normalizedCode);
 
-    if (!activeCode || normalizedCode !== activeCode) {
+    if (!classId) {
       setError('Código inválido o expirado. Espera el nuevo código del profesor.');
       setIsLoading(false);
       return;
     }
 
     // Guardamos en sesión solo para pasar la validación a la siguiente pantalla
-    sessionStorage.setItem('registerAccess', JSON.stringify({ code: normalizedCode }));
+    sessionStorage.setItem('registerAccess', JSON.stringify({ code: normalizedCode, classId }));
     setError('');
    
-    router.push(`/maestro/register?code=${normalizedCode}`); 
+    router.push(`/maestro/register?code=${normalizedCode}&classId=${encodeURIComponent(classId)}`); 
   };
 
   return (

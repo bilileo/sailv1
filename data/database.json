@@ -1,11 +1,25 @@
 {
-  "activeCode": "I7ZOOY",
+  "activeCodes": {
+    "2": null,
+    "18": "PMRGOV",
+    "19": "135XWX",
+    "legacy": "I7ZOOY"
+  },
   "students": [
     {
       "id": "1198109",
       "name": "Ramon Alberto Vazquez Guzman",
       "code": "XZ47LQ",
       "registeredAt": "2026-04-30T06:04:57.601Z",
+      "status": "normal",
+      "classId": "legacy"
+    },
+    {
+      "id": "1198109",
+      "name": "Ramon Alberto Vazquez Guzman",
+      "code": "6K6AWI",
+      "registeredAt": "2026-04-30T14:55:26.680Z",
+      "classId": "18",
       "status": "normal"
     }
   ]

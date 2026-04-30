@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, LogOut, Users, X, Clock, QrCode } from 'lucide-react';
-import { getStudents, updateStudentStatus, deleteStudent, updateActiveCode } from './actions';
+import { getStudents, updateStudentStatus, deleteStudent, updateActiveCode, registerStudent } from './actions';
 import { Student, StudentStatus } from '@/app/lib/db';
 import { getSession, signOut } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -48,6 +48,11 @@ export default function TeacherDashboard() {
   const [claseNoEncontrada, setClaseNoEncontrada] = useState(false);
   const isMaestro = usuarioActivo?.role === 'MAESTRO';
   const [faseClase, setFaseClase] = useState<'scheduled' | 'inProgress' | 'ended'>('scheduled');
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualId, setManualId] = useState('');
+  const [manualName, setManualName] = useState('');
+  const [manualError, setManualError] = useState('');
+  const [manualSaving, setManualSaving] = useState(false);
 
   useEffect(() => {
     getSession().then(session => {
@@ -187,7 +192,11 @@ export default function TeacherDashboard() {
   // === CARGA INICIAL Y POLLING DE DATOS (TIEMPO REAL SIMULADO) ===
   useEffect(() => {
     const fetchLatestStudents = async () => {
-      const data = await getStudents();
+      if (!classId) {
+        setStudents([]);
+        return;
+      }
+      const data = await getStudents(String(classId));
       setStudents(data);
     };
 
@@ -205,20 +214,24 @@ export default function TeacherDashboard() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [classStatus]);
+  }, [classStatus, classId]);
 
   // === MOTOR DEL CÓDIGO DINÁMICO ===
   // Este Effect maneja la rotación del código cada 10 segundos
   useEffect(() => {
     if (classStatus !== 'inProgress') {
-      updateActiveCode(null); // Limpiamos el código en el servidor al terminar o antes de iniciar
+      if (classId) {
+        updateActiveCode(String(classId), null); // Limpiamos el código en el servidor al terminar o antes de iniciar
+      }
       return;
     }
+
+    if (!classId) return;
 
     // Inicializar el primer código
     const initialCode = generateCode();
     setCurrentCode(initialCode);
-    updateActiveCode(initialCode); // Guardar en el JSON
+    updateActiveCode(String(classId), initialCode); // Guardar en el JSON
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -226,7 +239,7 @@ export default function TeacherDashboard() {
           // El tiempo expiró: Generamos nuevo código
           const nextCode = generateCode();
           setCurrentCode(nextCode);
-          updateActiveCode(nextCode); // Impactamos el JSON vía Server Action
+          updateActiveCode(String(classId), nextCode); // Impactamos el JSON vía Server Action
           return CODE_REFRESH_INTERVAL;
         }
         return prev - 1; // Solo restamos 1 segundo
@@ -248,24 +261,62 @@ export default function TeacherDashboard() {
   };
 
   const handleStatusChange = async (studentId: string, newStatus: StudentStatus) => {
+    if (!classId) return;
     // 1. Actualización Optimista (UI responde de inmediato)
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status: newStatus } : s));
     // 2. Persistencia en el archivo JSON
-    await updateStudentStatus(studentId, newStatus);
+    await updateStudentStatus(studentId, String(classId), newStatus);
     setOpenReportFor(null); // Cerramos el menú contextual
   };
 
   const handleDelete = async (studentId: string) => {
+    if (!classId) return;
     // 1. Actualización Optimista
     setStudents(prev => prev.filter(s => s.id !== studentId));
     // 2. Persistencia en el archivo JSON
-    await deleteStudent(studentId);
+    await deleteStudent(studentId, String(classId));
   };
 
   const handleManualEntry = () => {
-    if (!currentCode || currentCode === '------') return;
-    sessionStorage.setItem('registerAccess', JSON.stringify({ code: currentCode }));
-    router.push(`/maestro/register?code=${currentCode}`);
+    setManualError('');
+    setManualId('');
+    setManualName('');
+    setManualOpen(true);
+  };
+
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!classId) {
+      setManualError('No se pudo determinar la clase.');
+      return;
+    }
+    if (!manualId.trim() || !manualName.trim()) {
+      setManualError('Completa el codigo y el nombre del alumno.');
+      return;
+    }
+    if (!currentCode || currentCode === '------') {
+      setManualError('No hay codigo activo para registrar asistencia.');
+      return;
+    }
+
+    setManualSaving(true);
+    const result = await registerStudent({
+      id: manualId.trim(),
+      name: manualName.trim(),
+      code: currentCode,
+      registeredAt: new Date().toISOString(),
+      classId: String(classId)
+    });
+    setManualSaving(false);
+
+    if (!result.success) {
+      setManualError(result.error || 'No se pudo registrar la asistencia.');
+      return;
+    }
+
+    const data = await getStudents(String(classId));
+    setStudents(data);
+    setManualOpen(false);
   };
 
   // === RENDERIZADO CONDICIONAL ===
@@ -440,7 +491,7 @@ export default function TeacherDashboard() {
             <div className="border-t border-gray-200 px-4 py-3">
               <button
                 onClick={handleManualEntry}
-                disabled={classStatus !== 'inProgress' || currentCode === '------'}
+                disabled={classStatus !== 'inProgress' || currentCode === '------' || !classId}
                 className="w-full bg-[#1a73e8] hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded transition-colors shadow-sm"
               >
                 Registrar asistencia manual
@@ -451,6 +502,70 @@ export default function TeacherDashboard() {
             </div>
           </div>
         </div>
+
+        {manualOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md bg-white rounded shadow-lg border border-gray-200">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <h3 className="text-sm font-bold text-gray-900">Registro manual de asistencia</h3>
+                <button
+                  onClick={() => setManualOpen(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                  aria-label="Cerrar"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <form onSubmit={handleManualSubmit} className="px-4 py-4 space-y-3">
+                <div>
+                  <label htmlFor="manualId" className="block text-xs font-semibold text-gray-700 mb-1">
+                    Codigo / Matricula
+                  </label>
+                  <input
+                    id="manualId"
+                    type="text"
+                    value={manualId}
+                    onChange={(e) => setManualId(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="manualName" className="block text-xs font-semibold text-gray-700 mb-1">
+                    Nombre completo
+                  </label>
+                  <input
+                    id="manualName"
+                    type="text"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
+                  />
+                </div>
+
+                {manualError && (
+                  <p className="text-xs text-red-600">{manualError}</p>
+                )}
+
+                <div className="flex items-center justify-end space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setManualOpen(false)}
+                    className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={manualSaving}
+                    className="bg-[#1a73e8] hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-medium px-4 py-2 rounded"
+                  >
+                    {manualSaving ? 'Guardando...' : 'Registrar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
