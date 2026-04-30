@@ -262,6 +262,12 @@ export default function TeacherDashboard() {
     await deleteStudent(studentId);
   };
 
+  const handleManualEntry = () => {
+    if (!currentCode || currentCode === '------') return;
+    sessionStorage.setItem('registerAccess', JSON.stringify({ code: currentCode }));
+    router.push(`/maestro/register?code=${currentCode}`);
+  };
+
   // === RENDERIZADO CONDICIONAL ===
   
   const getStudentRowStyle = (status: StudentStatus = 'normal') => {
@@ -429,6 +435,19 @@ export default function TeacherDashboard() {
                   </li>
                 ))}
               </ul>
+            </div>
+
+            <div className="border-t border-gray-200 px-4 py-3">
+              <button
+                onClick={handleManualEntry}
+                disabled={classStatus !== 'inProgress' || currentCode === '------'}
+                className="w-full bg-[#1a73e8] hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded transition-colors shadow-sm"
+              >
+                Registrar asistencia manual
+              </button>
+              <p className="text-xs text-gray-500 mt-2">
+                Usa este boton si un alumno no cuenta con dispositivo.
+              </p>
             </div>
           </div>
         </div>
