@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UserCheck, CheckCircle2 } from 'lucide-react';
 import { registerStudent } from '../dashboard/actions';
 
-export default function StudentRegisterPage() {
+function StudentRegisterPage() {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -133,5 +133,13 @@ export default function StudentRegisterPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense>
+      <StudentRegisterPage />
+    </Suspense>
   );
 }

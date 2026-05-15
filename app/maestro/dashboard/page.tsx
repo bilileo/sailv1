@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { User, LogOut, Users, X, Clock, QrCode } from 'lucide-react';
 import { getStudents, updateStudentStatus, deleteStudent, updateActiveCode, registerStudent } from './actions';
 import { Student, StudentStatus } from '@/app/lib/db';
@@ -30,7 +30,7 @@ const getMinutesNow = (fecha: Date) => fecha.getHours() * 60 + fecha.getMinutes(
 // Función auxiliar: Genera un código alfanumérico aleatorio de 6 caracteres
 const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
-export default function TeacherDashboard() {
+function TeacherDashboard() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const classId = searchParams.get('classId');
@@ -233,17 +233,16 @@ export default function TeacherDashboard() {
     setCurrentCode(initialCode);
     updateActiveCode(String(classId), initialCode); // Guardar en el JSON
 
+    let secsLeft = CODE_REFRESH_INTERVAL;
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // El tiempo expiró: Generamos nuevo código
-          const nextCode = generateCode();
-          setCurrentCode(nextCode);
-          updateActiveCode(String(classId), nextCode); // Impactamos el JSON vía Server Action
-          return CODE_REFRESH_INTERVAL;
-        }
-        return prev - 1; // Solo restamos 1 segundo
-      });
+      secsLeft -= 1;
+      setTimeLeft(secsLeft);
+      if (secsLeft <= 0) {
+        const nextCode = generateCode();
+        setCurrentCode(nextCode);
+        updateActiveCode(String(classId), nextCode);
+        secsLeft = CODE_REFRESH_INTERVAL;
+      }
     }, 1000);
 
     // Limpieza del intervalo cuando el componente se desmonta
@@ -568,5 +567,13 @@ export default function TeacherDashboard() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense>
+      <TeacherDashboard />
+    </Suspense>
   );
 }

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 
 interface Laboratorio { id: number; name: string; }
 interface Maestro { id: string; name: string; }
-interface Clase { id: string; nombre: string; laboratorio: string; horario: string; startTime: string; }
+interface Clase { id: string; nombre: string; laboratorio: string; horario: string; dayOfWeek: number; }
 
 interface FormularioClaseProps {
   onClaseCreada: (nuevaClase: any) => void;
@@ -72,7 +72,7 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
   const horariosOcupados = clases
     .filter(c => {
       const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-      const diaClase = mapaDias[new Date(c.startTime).getDay()];
+      const diaClase = c.dayOfWeek === 7 ? 'Domingo' : mapaDias[c.dayOfWeek];
       return c.laboratorio === labSeleccionado && diaClase === dia;
     })
     .flatMap(c => {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getToken } from 'next-auth/jwt';
+import { readDB, writeDB } from '@/app/lib/db';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -92,6 +93,34 @@ export async function PUT(request: Request) {
     const body = await request.json();
 
     if (body.status && !body.horario && !body.laboratorioId && !body.nombre && !body.dia) {
+      if (body.status === 'ENDED') {
+        const db = await readDB();
+        const classIdStr = String(body.id);
+        const classIdInt = parseInt(classIdStr);
+        const students = db.students.filter((s) => String(s.classId) === classIdStr);
+        if (students.length > 0) {
+          const records = students.map((s) => ({
+            classsessionid: classIdInt,
+            userid: null,
+            studentmatricula: s.id,
+            studentname: s.name,
+            status: s.status ?? 'normal',
+            attendancedate: s.registeredAt ?? new Date().toISOString(),
+            authcode: s.code ?? null,
+          }));
+          // Borrar solo registros de alumnos (userid null) previos de esta clase
+          await supabase.from('Attendance').delete()
+            .eq('classsessionid', classIdInt)
+            .is('userid', null);
+          const { error: insertError } = await supabase.from('Attendance').insert(records);
+          if (insertError) {
+            console.error('[Attendance insert error]', insertError.message);
+          } else {
+            await writeDB({ ...db, students: db.students.filter((s) => String(s.classId) !== classIdStr) });
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('ClassSession')
         .update({ status: body.status })

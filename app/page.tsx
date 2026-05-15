@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
+import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle, Calendar, Download, FileSpreadsheet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
 import { FormularioClase } from './FormularioClase';
@@ -63,6 +63,8 @@ export default function SailAdminDashboard() {
   const [incidencias, setIncidencias] = useState<any[]>([]);
   const [editStatus, setEditStatus] = useState('ACTIVE');
   const [editColor, setEditColor] = useState('bg-blue-600');
+  const [reportDesde, setReportDesde] = useState('');
+  const [reportHasta, setReportHasta] = useState('');
 
   const labNombreEdicion = laboratorios.find(l => l.id.toString() === editLab)?.name;
   
@@ -248,6 +250,32 @@ export default function SailAdminDashboard() {
     } finally {
       setGuardandoEdicion(false);
     }
+  };
+
+  const triggerDownload = (url: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleExportarClase = (classId: string) => {
+    triggerDownload(`/api/export/asistencia?classId=${encodeURIComponent(classId)}`);
+    handleCerrarAcciones();
+  };
+
+  const handleExportarPeriodo = () => {
+    if (!reportDesde || !reportHasta) {
+      toast.error('Selecciona un rango de fechas');
+      return;
+    }
+    if (reportDesde > reportHasta) {
+      toast.error('La fecha de inicio debe ser anterior a la de fin');
+      return;
+    }
+    triggerDownload(`/api/export/asistencia?desde=${reportDesde}&hasta=${reportHasta}`);
   };
 
   // 4. Filtramos las clases comparando nuestro getNombreDia con el filtro actual
@@ -517,6 +545,45 @@ export default function SailAdminDashboard() {
                 </table>
               </div>
             </div>
+
+            {!isMaestro && (
+              <div className="bg-white rounded-sm border border-gray-200 shadow-sm p-6">
+                <h2 className="text-lg font-bold text-gray-800 mb-1 flex items-center">
+                  <FileSpreadsheet className="w-5 h-5 mr-2 text-emerald-700" />
+                  Exportar Reporte de Asistencia
+                </h2>
+                <p className="text-xs text-gray-500 mb-4">
+                  Genera un Excel con todos los registros de asistencia de un período de tiempo.
+                </p>
+                <div className="flex flex-wrap gap-4 items-end">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Desde</label>
+                    <input
+                      type="date"
+                      value={reportDesde}
+                      onChange={(e) => setReportDesde(e.target.value)}
+                      className="border border-gray-300 rounded-sm px-3 py-2 text-sm text-black outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Hasta</label>
+                    <input
+                      type="date"
+                      value={reportHasta}
+                      onChange={(e) => setReportHasta(e.target.value)}
+                      className="border border-gray-300 rounded-sm px-3 py-2 text-sm text-black outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <button
+                    onClick={handleExportarPeriodo}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-sm transition-colors shadow-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Exportar Excel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -823,6 +890,15 @@ export default function SailAdminDashboard() {
                     className="w-full px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
                   >
                     Editar clase
+                  </button>
+                )}
+                {!isMaestro && claseAcciones.status === 'ENDED' && (
+                  <button
+                    onClick={() => handleExportarClase(claseAcciones.id)}
+                    className="w-full px-4 py-2 text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Exportar Asistencia
                   </button>
                 )}
                 <button

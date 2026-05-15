@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# datos en tiempo real — contiene matrículas y nombres de alumnos
+data/database.json
+
+# archivos del IDE y herramientas locales
+.idea/
+.claude/
