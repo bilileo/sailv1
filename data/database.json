@@ -1,8 +1,10 @@
 {
   "activeCodes": {
-    "2": null,
-    "18": "PMRGOV",
-    "19": "135XWX",
+    "2": "XVOQ0N",
+    "18": null,
+    "19": null,
+    "20": null,
+    "21": "Y9SPID",
     "legacy": "I7ZOOY"
   },
   "students": [
@@ -20,6 +22,30 @@
       "code": "6K6AWI",
       "registeredAt": "2026-04-30T14:55:26.680Z",
       "classId": "18",
+      "status": "normal"
+    },
+    {
+      "id": "1198109",
+      "name": "Ramon Alberto Vazquez Guzman",
+      "code": "5GXO9D",
+      "registeredAt": "2026-04-30T17:10:22.405Z",
+      "classId": "21",
+      "status": "normal"
+    },
+    {
+      "id": "111222333",
+      "name": "Alan Angulo",
+      "code": "N5HZB2",
+      "registeredAt": "2026-04-30T17:11:33.688Z",
+      "classId": "2",
+      "status": "normal"
+    },
+    {
+      "id": "2223334444",
+      "name": "Pepito",
+      "code": "AD5FOR",
+      "registeredAt": "2026-04-30T17:20:37.515Z",
+      "classId": "21",
       "status": "normal"
     }
   ]

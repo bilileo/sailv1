@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { KeyRound, ArrowRight } from 'lucide-react';
 import { validateActiveCode } from '../dashboard/actions'; // Ajusta la ruta si moviste actions.ts
@@ -10,6 +10,13 @@ export default function JoinClassPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const session = sessionStorage.getItem('studentSession');
+    if (!session) {
+      router.replace('/maestro/login');
+    }
+  }, [router]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();

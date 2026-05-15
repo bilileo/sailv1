@@ -4,11 +4,11 @@
 import React, { useState, useEffect } from 'react';
 import { User, LogOut, Users, X, Clock, QrCode } from 'lucide-react';
 import { getStudents, updateStudentStatus, deleteStudent, updateActiveCode, registerStudent } from './actions';
-import { Student, StudentStatus } from '@/app/lib/db';
+import { StudentRow, StudentStatus } from '@/app/lib/attendance-types';
 import { getSession, signOut } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-const CODE_REFRESH_INTERVAL = 10; // Segundos
+const CODE_REFRESH_INTERVAL = 60; // Segundos
 
 const getDiaJs = (dayOfWeek?: number) => {
   if (!dayOfWeek) return null;
@@ -36,7 +36,7 @@ export default function TeacherDashboard() {
   const classId = searchParams.get('classId');
 
   // === ESTADOS DEL COMPONENTE ===
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<StudentRow[]>([]);
   const [currentCode, setCurrentCode] = useState<string>('------');
   const [timeLeft, setTimeLeft] = useState(CODE_REFRESH_INTERVAL);
   const [classStatus, setClassStatus] = useState<'scheduled' | 'inProgress' | 'finished'>('scheduled');
@@ -51,6 +51,7 @@ export default function TeacherDashboard() {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualId, setManualId] = useState('');
   const [manualName, setManualName] = useState('');
+  const [manualDeviceType, setManualDeviceType] = useState('');
   const [manualError, setManualError] = useState('');
   const [manualSaving, setManualSaving] = useState(false);
 
@@ -220,18 +221,18 @@ export default function TeacherDashboard() {
   // Este Effect maneja la rotación del código cada 10 segundos
   useEffect(() => {
     if (classStatus !== 'inProgress') {
-      if (classId) {
-        updateActiveCode(String(classId), null); // Limpiamos el código en el servidor al terminar o antes de iniciar
+      if (claseInfo?.laboratorioId) {
+        updateActiveCode(String(claseInfo.laboratorioId), null); // Limpiamos el código en Redis al terminar o antes de iniciar
       }
       return;
     }
 
-    if (!classId) return;
+    if (!classId || !claseInfo?.laboratorioId) return;
 
     // Inicializar el primer código
     const initialCode = generateCode();
     setCurrentCode(initialCode);
-    updateActiveCode(String(classId), initialCode); // Guardar en el JSON
+    updateActiveCode(String(claseInfo.laboratorioId), initialCode); // Guardar en Redis
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -239,7 +240,7 @@ export default function TeacherDashboard() {
           // El tiempo expiró: Generamos nuevo código
           const nextCode = generateCode();
           setCurrentCode(nextCode);
-          updateActiveCode(String(classId), nextCode); // Impactamos el JSON vía Server Action
+          updateActiveCode(String(claseInfo.laboratorioId), nextCode); // Impactamos el codigo en Redis via Server Action
           return CODE_REFRESH_INTERVAL;
         }
         return prev - 1; // Solo restamos 1 segundo
@@ -248,7 +249,7 @@ export default function TeacherDashboard() {
 
     // Limpieza del intervalo cuando el componente se desmonta
     return () => clearInterval(timer);
-  }, [classStatus]);
+  }, [classStatus, classId, claseInfo?.laboratorioId]);
 
   // === MANEJADORES DE EVENTOS (HANDLERS) ===
 
@@ -281,6 +282,7 @@ export default function TeacherDashboard() {
     setManualError('');
     setManualId('');
     setManualName('');
+    setManualDeviceType('');
     setManualOpen(true);
   };
 
@@ -290,8 +292,8 @@ export default function TeacherDashboard() {
       setManualError('No se pudo determinar la clase.');
       return;
     }
-    if (!manualId.trim() || !manualName.trim()) {
-      setManualError('Completa el codigo y el nombre del alumno.');
+    if (!manualId.trim() || !manualName.trim() || !manualDeviceType.trim()) {
+      setManualError('Completa el codigo, nombre y dispositivo en uso.');
       return;
     }
     if (!currentCode || currentCode === '------') {
@@ -303,6 +305,7 @@ export default function TeacherDashboard() {
     const result = await registerStudent({
       id: manualId.trim(),
       name: manualName.trim(),
+      deviceType: manualDeviceType.trim(),
       code: currentCode,
       registeredAt: new Date().toISOString(),
       classId: String(classId)
@@ -540,6 +543,21 @@ export default function TeacherDashboard() {
                     onChange={(e) => setManualName(e.target.value)}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
                   />
+                </div>
+                <div>
+                  <label htmlFor="manualDeviceType" className="block text-xs font-semibold text-gray-700 mb-1">
+                    Dispositivo en uso
+                  </label>
+                  <select
+                    id="manualDeviceType"
+                    value={manualDeviceType}
+                    onChange={(e) => setManualDeviceType(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
+                  >
+                    <option value="">Selecciona una opcion</option>
+                    <option value="Propio">Propio</option>
+                    <option value="Universidad">Universidad</option>
+                  </select>
                 </div>
 
                 {manualError && (

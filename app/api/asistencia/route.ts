@@ -1,42 +1,51 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { supabase } from '@/app/lib/supabase';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const classSessionId = searchParams.get('classSessionId');
-    const userId = searchParams.get('userId');
+    const studentId = searchParams.get('studentId');
+    const teacherId = searchParams.get('teacherId');
 
     let query = supabase
       .from('Attendance')
       .select(`
-        id, classsessionid, userid, attendancedate, status, authcode, createdat,
-        ClassSession ( subject, Laboratory ( name ) ),
-        User ( name )
+        id,
+        classSessionId,
+        teacherId,
+        studentId,
+        registrationCode,
+        deviceType,
+        status,
+        checkInTime,
+        checkOutTime,
+        Student ( name, email ),
+        ClassSession ( subject, Laboratory ( name ) )
       `)
-      .order('attendancedate', { ascending: false });
+      .order('checkInTime', { ascending: false });
 
-    if (classSessionId) query = query.eq('classsessionid', classSessionId);
-    if (userId) query = query.eq('userid', userId);
+    if (classSessionId) query = query.eq('classSessionId', classSessionId);
+    if (studentId) query = query.eq('studentId', studentId);
+    if (teacherId) query = query.eq('teacherId', teacherId);
 
     const { data, error } = await query;
     if (error) throw error;
 
-    const formattedData = data.map((a: any) => ({
+    const formattedData = (data || []).map((a: any) => ({
       id: a.id,
-      classSessionId: a.classsessionid,
-      userId: a.userid,
-      attendanceDate: a.attendancedate,
+      classSessionId: a.classSessionId,
+      teacherId: a.teacherId,
+      studentId: a.studentId,
+      registrationCode: a.registrationCode,
+      deviceType: a.deviceType,
       status: a.status,
-      authCode: a.authcode,
-      createdAt: a.createdat,
+      checkInTime: a.checkInTime,
+      checkOutTime: a.checkOutTime,
+      alumno: a.Student?.name,
+      email: a.Student?.email,
       clase: a.ClassSession?.subject,
-      laboratorio: a.ClassSession?.Laboratory?.name,
-      alumno: a.User?.name
+      laboratorio: a.ClassSession?.Laboratory?.name
     }));
 
     return NextResponse.json(formattedData);
@@ -50,13 +59,15 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const payload: any = {
-      classsessionid: body.classSessionId,
-      userid: body.userId,
-      status: body.status || 'PRESENT'
+      classSessionId: body.classSessionId,
+      teacherId: body.teacherId,
+      studentId: body.studentId,
+      registrationCode: body.registrationCode,
+      deviceType: body.deviceType,
+      status: body.status || 'PRESENT',
+      checkInTime: body.checkInTime,
+      checkOutTime: body.checkOutTime
     };
-
-    if (body.attendanceDate) payload.attendancedate = body.attendanceDate;
-    if (body.authCode) payload.authcode = body.authCode;
 
     const { error } = await supabase
       .from('Attendance')
@@ -78,11 +89,14 @@ export async function PUT(request: Request) {
     }
 
     const updatePayload: any = {};
-    if (body.classSessionId) updatePayload.classsessionid = body.classSessionId;
-    if (body.userId) updatePayload.userid = body.userId;
+    if (body.classSessionId) updatePayload.classSessionId = body.classSessionId;
+    if (body.teacherId) updatePayload.teacherId = body.teacherId;
+    if (body.studentId) updatePayload.studentId = body.studentId;
     if (body.status) updatePayload.status = body.status;
-    if (body.attendanceDate) updatePayload.attendancedate = body.attendanceDate;
-    if (body.authCode !== undefined) updatePayload.authcode = body.authCode;
+    if (body.registrationCode !== undefined) updatePayload.registrationCode = body.registrationCode;
+    if (body.deviceType) updatePayload.deviceType = body.deviceType;
+    if (body.checkInTime !== undefined) updatePayload.checkInTime = body.checkInTime;
+    if (body.checkOutTime !== undefined) updatePayload.checkOutTime = body.checkOutTime;
 
     if (Object.keys(updatePayload).length === 0) {
       return NextResponse.json({ error: 'Sin datos para actualizar' }, { status: 400 });

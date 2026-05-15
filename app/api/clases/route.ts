@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('ClassSession')
-      .select('id, teacherid, status, subject, starttime, endtime, dayofweek, color, Laboratory(name)')
+      .select('id, teacherid, status, subject, starttime, endtime, dayofweek, color, laboratoryid, Laboratory(id, name)')
       .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE']); 
 
     if (token.role === 'MAESTRO') {
@@ -39,6 +39,7 @@ export async function GET(request: Request) {
         status: c.status,
         nombre: c.subject,      
         laboratorio: c.Laboratory ? c.Laboratory.name : 'Sin Asignar',
+        laboratorioId: c.Laboratory?.id || c.laboratoryid,
         dayOfWeek: c.dayofweek,
         horario: `${sHour}:00 - ${eHour}:00`,
         color: c.color || 'bg-blue-600'

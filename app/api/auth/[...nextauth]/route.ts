@@ -22,14 +22,11 @@ export const authOptions: NextAuthOptions = {
           .from('User')
           .select('*')
           .eq('email', credentials.email)
-          .single();
+          .maybeSingle();
 
-        // CAMBIO AQUÍ: Cambiamos 'user.passwordHash' por 'user.password'
-        if (error || !user || !user.password) return null;
+        if (error || !user?.password) return null;
 
-        // CAMBIO AQUÍ: Comparamos contra la columna 'password'
         const passwordsMatch = await bcrypt.compare(credentials.password, user.password);
-        
         if (!passwordsMatch) return null;
 
         return { id: user.id, name: user.name, email: user.email, role: user.role } as any;

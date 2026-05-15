@@ -8,6 +8,7 @@ import { registerStudent } from '../dashboard/actions';
 export default function StudentRegisterPage() {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
+  const [deviceType, setDeviceType] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
@@ -21,15 +22,19 @@ export default function StudentRegisterPage() {
   // Validación inicial rápida usando la sesión de la pantalla anterior
   useEffect(() => {
     const rawAccess = sessionStorage.getItem('registerAccess');
-    if (!rawAccess || !codeFromUrl) {
+    const rawStudent = sessionStorage.getItem('studentSession');
+    if (!rawAccess || !codeFromUrl || !rawStudent) {
       router.replace('/maestro/join');
       return;
     }
-    
+
     try {
       const access = JSON.parse(rawAccess);
+      const student = JSON.parse(rawStudent);
       if (access.code !== codeFromUrl) throw new Error('Mismatch');
       setClassId(access.classId || classIdFromUrl);
+      if (student?.id) setId(student.id);
+      if (student?.name) setName(student.name);
       setIsAuthorized(true);
     } catch {
       router.replace('/maestro/join');
@@ -38,7 +43,7 @@ export default function StudentRegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id.trim() || !name.trim()) return;
+    if (!id.trim() || !name.trim() || !deviceType.trim()) return;
 
     // Llamamos a la Server Action para escribir en el JSON
     const resolvedClassId = classId || classIdFromUrl;
@@ -50,6 +55,7 @@ export default function StudentRegisterPage() {
     const result = await registerStudent({
       id: id.trim(),
       name: name.trim(),
+      deviceType: deviceType.trim(),
       code: codeFromUrl,
       registeredAt: new Date().toISOString(),
       classId: resolvedClassId,
@@ -63,7 +69,7 @@ export default function StudentRegisterPage() {
         router.push('/maestro/join');
       }, 3000);
     } else {
-      setError('Ocurrió un error al registrar asistencia.');
+      setError(result.error || 'Ocurrio un error al registrar asistencia.');
     }
   };
 
@@ -120,6 +126,22 @@ export default function StudentRegisterPage() {
               className="text-black w-full px-3 py-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
               required
             />
+          </div>
+          <div>
+            <label htmlFor="studentDeviceType" className="block text-sm font-medium text-gray-700 mb-1">
+              Dispositivo en uso
+            </label>
+            <select
+              id="studentDeviceType"
+              value={deviceType}
+              onChange={(e) => setDeviceType(e.target.value)}
+              className="text-black w-full px-3 py-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
+              required
+            >
+              <option value="">Selecciona una opcion</option>
+              <option value="Propio">Propio</option>
+              <option value="Universidad">Universidad</option>
+            </select>
           </div>
           
           {error && <p className="text-sm text-red-600 text-center">{error}</p>}
