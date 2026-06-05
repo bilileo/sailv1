@@ -3,7 +3,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { supabase } from '@/app/lib/supabase';
-import { redis } from '@/app/lib/redis';
+import { readDB, writeDB } from '@/app/lib/db';
 import type { StudentRow, StudentStatus } from '@/app/lib/attendance-types';
 
 type AttendanceStatus = 'PRESENT' | 'LATE' | 'LEFT_EARLY' | 'UNAUTHORIZED' | 'ABSENT';
@@ -47,19 +47,55 @@ const isClassInProgress = (dayOfWeek: number, startTime: string, endTime: string
   return nowMinutes >= startMinutes && nowMinutes < endMinutes;
 };
 
-const getLabCodeKey = (labId: number | string) => `lab:codigo:${labId}`;
+const getLabCodeKey = (labId: number | string) => String(labId);
+
+const isExpired = (expiresAt?: string | null) => {
+  if (!expiresAt) return false;
+  const expires = new Date(expiresAt).getTime();
+  return Number.isNaN(expires) ? false : expires <= Date.now();
+};
+
+const resolveDeviceTypeId = async (name: string) => {
+  const normalized = name.trim();
+  if (!normalized) return null;
+
+  const { data: existing, error } = await supabase
+    .from('DeviceType')
+    .select('id')
+    .eq('name', normalized)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (existing?.id) return existing.id;
+
+  const { data: created, error: insertError } = await supabase
+    .from('DeviceType')
+    .insert([{ name: normalized }])
+    .select('id')
+    .maybeSingle();
+
+  if (insertError) throw insertError;
+  return created?.id || null;
+};
 
 // Guarda el código dinámico generado por el profesor
 export async function updateActiveCode(labId: string, code: string | null) {
   if (!labId) return;
   const key = getLabCodeKey(labId);
+  const db = await readDB();
 
   if (!code) {
-    await redis.del(key);
+    db.activeCodes[key] = null;
+    await writeDB(db);
     return;
   }
 
-  await redis.set(key, code, { ex: CODE_TTL_SECONDS });
+  db.activeCodes[key] = {
+    code,
+    expiresAt: new Date(Date.now() + CODE_TTL_SECONDS * 1000).toISOString()
+  };
+
+  await writeDB(db);
 }
 
 // Obtiene la lista de alumnos
@@ -117,27 +153,36 @@ export async function validateActiveCode(code: string): Promise<string | null> {
   const labIds = (labs || []).map((lab: any) => lab.id);
   if (labIds.length === 0) return null;
 
-  const codes = await Promise.all(
-    labIds.map((labId: number) => redis.get<string>(getLabCodeKey(labId)))
-  );
+  const db = await readDB();
+  let changed = false;
 
-  const matchingLabId = labIds.find((labId: number, index: number) => {
-    const storedCode = codes[index];
-    return storedCode && storedCode.toUpperCase() === normalizedCode;
+  const matchingLabId = labIds.find((labId: number) => {
+    const entry = db.activeCodes[getLabCodeKey(labId)];
+    if (!entry) return false;
+    if (isExpired(entry.expiresAt)) {
+      db.activeCodes[getLabCodeKey(labId)] = null;
+      changed = true;
+      return false;
+    }
+    return entry.code.toUpperCase() === normalizedCode;
   });
+
+  if (changed) {
+    await writeDB(db);
+  }
 
   if (!matchingLabId) return null;
 
   const { data: classes, error: classError } = await supabase
     .from('ClassSession')
-    .select('id, dayofweek, starttime, endtime')
-    .eq('laboratoryid', matchingLabId)
+    .select('id, "dayOfWeek", "startTime", "endTime"')
+    .eq('laboratoryId', matchingLabId)
     .eq('status', 'ACTIVE');
 
   if (classError) throw classError;
 
   const activeClass = (classes || []).find((session: any) =>
-    isClassInProgress(session.dayofweek, session.starttime, session.endtime)
+    isClassInProgress(session.dayOfWeek, session.startTime, session.endTime)
   );
 
   return activeClass ? String(activeClass.id) : null;
@@ -165,12 +210,12 @@ export async function registerStudent(
 
   const { data: classSession, error: classError } = await supabase
     .from('ClassSession')
-    .select('teacherid')
+    .select('teacherId')
     .eq('id', classId)
     .maybeSingle();
 
   if (classError) throw classError;
-  if (!classSession?.teacherid) {
+  if (!classSession?.teacherId) {
     return { success: false, error: 'No se pudo determinar el maestro de la clase.' };
   }
 
@@ -183,12 +228,19 @@ export async function registerStudent(
 
   if (attendanceQueryError) throw attendanceQueryError;
 
+  const deviceTypeName = studentData.deviceType || 'Propio';
+  const deviceTypeId = await resolveDeviceTypeId(deviceTypeName);
+
+  if (!deviceTypeId) {
+    return { success: false, error: 'No se pudo determinar el tipo de dispositivo.' };
+  }
+
   const payload = {
     classSessionId: Number(classId),
-    teacherId: classSession.teacherid,
+    teacherId: classSession.teacherId,
     studentId: studentData.id,
     registrationCode: studentData.code,
-    deviceType: studentData.deviceType || 'Propio',
+    deviceTypeId,
     status: 'PRESENT' as AttendanceStatus
   };
 

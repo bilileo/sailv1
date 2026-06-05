@@ -72,7 +72,7 @@ export async function PUT(request: Request) {
     // Si mandó contraseña nueva, la actualizamos también
     if (data.password) {
       const hash = await bcrypt.hash(data.password, 10);
-      updatePayload.passwordHash = hash;
+      updatePayload.password = hash;
     }
 
     const { error } = await supabase

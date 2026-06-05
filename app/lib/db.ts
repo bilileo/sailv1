@@ -2,29 +2,23 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-// Definimos las interfaces para mantener el tipado estricto
-export type StudentStatus = 'normal' | 'tarde' | 'ausente' | 'abandono';
-
-export interface Student {
-  id: string;
-  name: string;
-  code?: string;
-  registeredAt?: string;
-  status?: StudentStatus;
-  classId?: string;
+export interface CodeEntry {
+  code: string;
+  expiresAt?: string | null;
 }
 
 // Ruta absoluta a nuestro json sustito de base de datos
 const DB_PATH = path.join(process.cwd(), 'data', 'database.json');
 
-// Estructura de nuestro archivo JSON
+// Estructura de nuestro archivo JSON (solo codigos QR por laboratorio)
 interface DatabaseSchema {
-  activeCodes: Record<string, string | null>;
-  students: Student[];
+  activeCodes: Record<string, CodeEntry | null>;
 }
 
 type LegacyDatabaseSchema = DatabaseSchema & {
   activeCode?: string | null;
+  activeCodes?: Record<string, string | CodeEntry | null>;
+  students?: unknown;
 };
 
 // Inicializa el archivo si no existe
@@ -34,7 +28,7 @@ async function initDB() {
   } catch {
     // Si falla, es porque el archivo no existe o no hay carpeta 'data'
     await fs.mkdir(path.join(process.cwd(), 'data'), { recursive: true });
-    const initialData: DatabaseSchema = { activeCodes: {}, students: [] };
+    const initialData: DatabaseSchema = { activeCodes: {} };
     await fs.writeFile(DB_PATH, JSON.stringify(initialData, null, 2));
   }
 }
@@ -43,24 +37,34 @@ function normalizeDB(raw: LegacyDatabaseSchema): { normalized: DatabaseSchema; c
   let changed = false;
 
   const normalized: DatabaseSchema = {
-    activeCodes: raw.activeCodes ?? {},
-    students: Array.isArray(raw.students) ? raw.students : []
+    activeCodes: {}
   };
 
+  if (raw.activeCodes && typeof raw.activeCodes === 'object') {
+    for (const [labId, value] of Object.entries(raw.activeCodes)) {
+      if (!value) {
+        normalized.activeCodes[labId] = null;
+        continue;
+      }
+
+      if (typeof value === 'string') {
+        normalized.activeCodes[labId] = { code: value, expiresAt: null };
+        changed = true;
+        continue;
+      }
+
+      normalized.activeCodes[labId] = value as CodeEntry;
+    }
+  }
+
   if (!raw.activeCodes && raw.activeCode !== undefined) {
-    normalized.activeCodes = raw.activeCode ? { legacy: raw.activeCode } : {};
+    normalized.activeCodes = raw.activeCode ? { legacy: { code: raw.activeCode, expiresAt: null } } : {};
     changed = true;
   }
 
-  const mappedStudents = normalized.students.map((student) => {
-    if (!student.classId) {
-      changed = true;
-      return { ...student, classId: 'legacy' };
-    }
-    return student;
-  });
-
-  normalized.students = mappedStudents;
+  if (raw.students) {
+    changed = true;
+  }
 
   return { normalized, changed };
 }

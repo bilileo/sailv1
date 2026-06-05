@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import { supabase } from '@/app/lib/supabase';
 
 export async function POST(request: Request) {
@@ -19,7 +20,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Credenciales invalidas' }, { status: 401 });
     }
 
-    if (student.password !== body.password) {
+    const matches = await bcrypt.compare(body.password, student.password);
+    if (!matches) {
       return NextResponse.json({ error: 'Credenciales invalidas' }, { status: 401 });
     }
 

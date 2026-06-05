@@ -1,6 +1,29 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/app/lib/supabase';
 
+const resolveDeviceTypeId = async (name?: string) => {
+  const normalized = (name || '').trim();
+  if (!normalized) return null;
+
+  const { data: existing, error } = await supabase
+    .from('DeviceType')
+    .select('id')
+    .eq('name', normalized)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (existing?.id) return existing.id;
+
+  const { data: created, error: insertError } = await supabase
+    .from('DeviceType')
+    .insert([{ name: normalized }])
+    .select('id')
+    .maybeSingle();
+
+  if (insertError) throw insertError;
+  return created?.id || null;
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -16,12 +39,13 @@ export async function GET(request: Request) {
         teacherId,
         studentId,
         registrationCode,
-        deviceType,
+        deviceTypeId,
         status,
         checkInTime,
         checkOutTime,
         Student ( name, email ),
-        ClassSession ( subject, Laboratory ( name ) )
+        DeviceType ( name ),
+        ClassSession ( Asignatura ( name ), Laboratory ( name ) )
       `)
       .order('checkInTime', { ascending: false });
 
@@ -38,13 +62,13 @@ export async function GET(request: Request) {
       teacherId: a.teacherId,
       studentId: a.studentId,
       registrationCode: a.registrationCode,
-      deviceType: a.deviceType,
+      deviceType: a.DeviceType?.name,
       status: a.status,
       checkInTime: a.checkInTime,
       checkOutTime: a.checkOutTime,
       alumno: a.Student?.name,
       email: a.Student?.email,
-      clase: a.ClassSession?.subject,
+      clase: a.ClassSession?.Asignatura?.name,
       laboratorio: a.ClassSession?.Laboratory?.name
     }));
 
@@ -58,12 +82,18 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
+    const deviceTypeId = await resolveDeviceTypeId(body.deviceType || 'Propio');
+
+    if (!deviceTypeId) {
+      return NextResponse.json({ error: 'Tipo de dispositivo invalido' }, { status: 400 });
+    }
+
     const payload: any = {
       classSessionId: body.classSessionId,
       teacherId: body.teacherId,
       studentId: body.studentId,
       registrationCode: body.registrationCode,
-      deviceType: body.deviceType,
+      deviceTypeId,
       status: body.status || 'PRESENT',
       checkInTime: body.checkInTime,
       checkOutTime: body.checkOutTime
@@ -94,7 +124,13 @@ export async function PUT(request: Request) {
     if (body.studentId) updatePayload.studentId = body.studentId;
     if (body.status) updatePayload.status = body.status;
     if (body.registrationCode !== undefined) updatePayload.registrationCode = body.registrationCode;
-    if (body.deviceType) updatePayload.deviceType = body.deviceType;
+    if (body.deviceType) {
+      const deviceTypeId = await resolveDeviceTypeId(body.deviceType);
+      if (!deviceTypeId) {
+        return NextResponse.json({ error: 'Tipo de dispositivo invalido' }, { status: 400 });
+      }
+      updatePayload.deviceTypeId = deviceTypeId;
+    }
     if (body.checkInTime !== undefined) updatePayload.checkInTime = body.checkInTime;
     if (body.checkOutTime !== undefined) updatePayload.checkOutTime = body.checkOutTime;
 

@@ -10,12 +10,13 @@ export async function GET() {
     const { data, error } = await supabase
       .from('Incident')
       .select(`
-        id, title, description, status, createdat, classsessionid, reportedbyid,
-        ClassSession ( subject, Laboratory ( name ) ),
+        id, title, description, status, "createdAt", "classSessionId", "reportedById", "laboratoryId",
+        ClassSession ( Asignatura ( name ), Laboratory ( name ) ),
+        Laboratory ( name ),
         User ( name )
       `)
       .order('status', { ascending: false })
-      .order('createdat', { ascending: false });
+      .order('createdAt', { ascending: false });
 
     if (error) throw error;
 
@@ -24,11 +25,11 @@ export async function GET() {
       title: i.title,
       message: i.description,
       status: i.status,
-      createdAt: i.createdat,             
-      classSessionId: i.classsessionid,   
-      reportedById: i.reportedbyid,       
-      clase: i.ClassSession?.subject,
-      laboratorio: i.ClassSession?.Laboratory?.name,
+      createdAt: i.createdAt,
+      classSessionId: i.classSessionId,
+      reportedById: i.reportedById,
+      clase: i.ClassSession?.Asignatura?.name,
+      laboratorio: i.Laboratory?.name || i.ClassSession?.Laboratory?.name,
       reportador: i.User?.name
     }));
 
@@ -42,13 +43,25 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
+    let laboratoryId = data.laboratoryId || null;
+    if (!laboratoryId && data.classSessionId) {
+      const { data: classSession, error: classError } = await supabase
+        .from('ClassSession')
+        .select('laboratoryId')
+        .eq('id', data.classSessionId)
+        .maybeSingle();
+      if (classError) throw classError;
+      laboratoryId = classSession?.laboratoryId || null;
+    }
+
     const { error } = await supabase
       .from('Incident')
       .insert([{
-        classsessionid: data.classSessionId, 
-        reportedbyid: data.reportedById,     
-        title: data.title || 'Incidencia Reportada', 
-        description: data.message, 
+        classSessionId: data.classSessionId,
+        reportedById: data.reportedById,
+        laboratoryId,
+        title: data.title || 'Incidencia Reportada',
+        description: data.message,
         status: 'PENDING'
       }]);
 
@@ -66,9 +79,24 @@ export async function PUT(request: Request) {
     let updatePayload: any = {};
     if (data.status) {
       updatePayload = { status: data.status };
+      if (data.status === 'RESOLVED') {
+        updatePayload.resolvedAt = new Date().toISOString();
+      }
     } else {
+      let laboratoryId = data.laboratoryId || null;
+      if (!laboratoryId && data.classSessionId) {
+        const { data: classSession, error: classError } = await supabase
+          .from('ClassSession')
+          .select('laboratoryId')
+          .eq('id', data.classSessionId)
+          .maybeSingle();
+        if (classError) throw classError;
+        laboratoryId = classSession?.laboratoryId || null;
+      }
+
       updatePayload = { 
-        classsessionid: data.classSessionId, 
+        classSessionId: data.classSessionId, 
+        laboratoryId,
         title: data.title || 'Incidencia Actualizada',
         description: data.message 
       };

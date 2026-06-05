@@ -222,7 +222,7 @@ export default function TeacherDashboard() {
   useEffect(() => {
     if (classStatus !== 'inProgress') {
       if (claseInfo?.laboratorioId) {
-        updateActiveCode(String(claseInfo.laboratorioId), null); // Limpiamos el código en Redis al terminar o antes de iniciar
+        updateActiveCode(String(claseInfo.laboratorioId), null); // Limpiamos el codigo activo en el JSON
       }
       return;
     }
@@ -232,7 +232,7 @@ export default function TeacherDashboard() {
     // Inicializar el primer código
     const initialCode = generateCode();
     setCurrentCode(initialCode);
-    updateActiveCode(String(claseInfo.laboratorioId), initialCode); // Guardar en Redis
+    updateActiveCode(String(claseInfo.laboratorioId), initialCode); // Guardar en el JSON
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -240,7 +240,7 @@ export default function TeacherDashboard() {
           // El tiempo expiró: Generamos nuevo código
           const nextCode = generateCode();
           setCurrentCode(nextCode);
-          updateActiveCode(String(claseInfo.laboratorioId), nextCode); // Impactamos el codigo en Redis via Server Action
+          updateActiveCode(String(claseInfo.laboratorioId), nextCode); // Actualizamos el codigo en el JSON via Server Action
           return CODE_REFRESH_INTERVAL;
         }
         return prev - 1; // Solo restamos 1 segundo
