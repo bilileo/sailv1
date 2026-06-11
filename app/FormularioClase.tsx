@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Plus, AlertCircle, CheckCircle, Palette} from 'lucide-react';
+import { Plus, AlertCircle, CheckCircle } from 'lucide-react';
+import { NuevaClase } from './lib/attendance-types';
 import { toast } from 'sonner';
 
 interface Laboratorio { id: number; name: string; }
@@ -8,9 +9,20 @@ interface Maestro { id: string; name: string; }
 interface Clase { id: string; nombre: string; laboratorio: string; horario: string; dayOfWeek: number; }
 
 interface FormularioClaseProps {
-  onClaseCreada: (nuevaClase: any) => void;
+  onClaseCreada: (nuevaClase: NuevaClase) => void;
   laboratorios: Laboratorio[];
   clases: Clase[];
+  open?: boolean;
+  onClose?: () => void;
+  initialValues?: Partial<{
+    nombre: string;
+    horario: string;
+    dia: string;
+    duracion: number;
+    laboratorioId: string;
+    maestroId: string;
+    color: string;
+  }>;
 }
 
 // Paleta de colores
@@ -23,12 +35,12 @@ const PALETA_COLORES = [
   { id: 'teal', clase: 'bg-teal-600', hover: 'hover:bg-teal-700' },
 ];
 
-export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: FormularioClaseProps) => {
+export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onClose, initialValues }: FormularioClaseProps) => {
   const [nombre, setNombre] = useState('');
-  const [lab, setLab] = useState(''); 
+  const [lab, setLab] = useState(initialValues?.laboratorioId || ''); 
   const [maestro, setMaestro] = useState('');
-  const [dia, setDia] = useState('Lunes');
-  const [duracion, setDuracion] = useState(1);
+  const [dia, setDia] = useState(initialValues?.dia || 'Lunes');
+  const [duracion, setDuracion] = useState(initialValues?.duracion || 1);
   const [maestros, setMaestros] = useState<Maestro[]>([]);
   const [errores, setErrores] = useState<{
     nombre?: string;
@@ -37,7 +49,7 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
     horario?: string;
   }>({});
   const [enviando, setEnviando] = useState(false);
-  const [colorFondo, setColorFondo] = useState(PALETA_COLORES[0].clase);
+  const [colorFondo, setColorFondo] = useState(initialValues?.color || PALETA_COLORES[0].clase);
 
   // Cargar maestros
   useEffect(() => {
@@ -68,32 +80,34 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
 
   // 2. LÓGICA DE BLOQUEO: Descomponer horarios multi-hora en bloques de 1 hora
   const labSeleccionado = laboratorios.find(l => l.id.toString() === lab)?.name;
-  
-  const horariosOcupados = clases
-    .filter(c => {
-      const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-      const diaClase = mapaDias[c.dayOfWeek === 7 ? 0 : c.dayOfWeek];
-      return c.laboratorio === labSeleccionado && diaClase === dia;
-    })
-    .flatMap(c => {
-      // Descomponer horarios multi-hora en bloques de 1 hora
-      const [inicio] = c.horario.split('-');
-      const horaI = parseInt(inicio.trim());
-      const horaF = parseInt(c.horario.split('-')[1].trim().split(':')[0]);
-      
-      // Generar bloques de 1 hora
-      const bloques = [];
-      for (let i = horaI; i < horaF; i++) {
-        bloques.push(`${i}:00- ${i + 1}:00`);
-      }
-      return bloques;
-    });
+
+  const horariosOcupados = React.useMemo(() => {
+    return clases
+      .filter(c => {
+        const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const diaClase = mapaDias[c.dayOfWeek === 7 ? 0 : c.dayOfWeek];
+        return c.laboratorio === labSeleccionado && diaClase === dia;
+      })
+      .flatMap(c => {
+        // Descomponer horarios multi-hora en bloques de 1 hora
+        const [inicio] = c.horario.split('-');
+        const horaI = parseInt(inicio.trim());
+        const horaF = parseInt(c.horario.split('-')[1].trim().split(':')[0]);
+
+        // Generar bloques de 1 hora
+        const bloques: string[] = [];
+        for (let i = horaI; i < horaF; i++) {
+          bloques.push(`${i}:00- ${i + 1}:00`);
+        }
+        return bloques;
+      });
+  }, [clases, labSeleccionado, dia]);
 
   // Función para verificar si un bloque está disponible (considerando la duración)
-  const esDisponible = (bloqueStr: string): boolean => {
+  const esDisponible = React.useCallback((bloqueStr: string): boolean => {
     const [inicio] = bloqueStr.split('-');
     const horaInicio = parseInt(inicio.trim());
-    
+
     // Verificar que cada hora del bloque esté libre
     for (let i = 0; i < duracion; i++) {
       const bloqueAVerificar = `${horaInicio + i}:00- ${horaInicio + i + 1}:00`;
@@ -102,26 +116,33 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
       }
     }
     return true;
-  };
+  }, [duracion, horariosOcupados]);
 
   // 3. Inicializamos el horario
   const [horario, setHorario] = useState(() => {
+    if (initialValues?.horario) return initialValues.horario;
     const libre = opcionesHorario.find(h => esDisponible(h));
     return libre || opcionesHorario[0];
   });
 
-  // Efecto para asignar laboratorio inicial
+  // If no lab selected but labs load, set default lab
   useEffect(() => {
-    if (laboratorios.length > 0 && lab === '') setLab(laboratorios[0].id.toString());
-  }, [laboratorios]);
+    if (laboratorios.length > 0 && !lab) {
+      // Setting default lab once when labs load. Disable rule because this
+      // intentionally initializes state from async-loaded data.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLab(laboratorios[0].id.toString());
+    }
+  }, [laboratorios, lab]);
 
   // Efecto para corregir selección si se ocupa el horario al cambiar día, lab o duración
   useEffect(() => {
     const disponibles = opcionesHorario.filter(h => esDisponible(h));
     if (!esDisponible(horario)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHorario(disponibles[0] || '');
     }
-  }, [lab, dia, duracion, clases]);
+  }, [lab, dia, duracion, clases, opcionesHorario, horario, esDisponible]);
 
  const handleSubmit = (e: React.FormEvent) => {
   e.preventDefault();
@@ -176,6 +197,8 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
     duration: 3000,
   });
 
+  if (onClose) onClose();
+
   // Limpiar formulario
   setNombre('');
   setColorFondo(PALETA_COLORES[0].clase);
@@ -183,7 +206,7 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
   setEnviando(false);
 };
 
-  return (
+  const card = (
     <div className="max-w-md bg-white border border-gray-200 p-6 rounded-sm shadow-sm text-black">
       <h2 className="text-xl font-bold mb-6 flex items-center text-[#0b6e3f]">
         <Plus className="w-5 h-5 mr-2" /> Agendar Clase
@@ -381,4 +404,21 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases }: Formula
       </form>
     </div>
   );
+
+  if (open) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="w-full max-w-xl">
+          <div className="bg-white rounded-md shadow-2xl overflow-hidden">
+            <div className="flex items-end justify-end px-4 py-3 border-b">
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">Cerrar</button>
+            </div>
+            <div className="p-4">{card}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return card;
 };

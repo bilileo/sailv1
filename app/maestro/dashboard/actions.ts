@@ -108,11 +108,25 @@ export async function getStudents(classId: string): Promise<StudentRow[]> {
 
   if (error) throw error;
 
-  return (data || []).map((row: any) => ({
-    id: row.studentId,
-    name: row.Student?.name || row.studentId,
-    status: attendanceToStatus[row.status as AttendanceStatus] || 'normal'
-  }));
+  return (data || []).map((row) => {
+    // Supabase standard join can return an array or object depending on schema
+    const r = row as { 
+      studentId: string; 
+      Student: { id: string; name: string } | { id: string; name: string }[] | null; 
+      status: string 
+    };
+    
+    let studentData: { id: string; name: string } | null = null;
+    if (r.Student) {
+      studentData = Array.isArray(r.Student) ? r.Student[0] : r.Student;
+    }
+
+    return {
+      id: r.studentId,
+      name: studentData?.name || r.studentId,
+      status: attendanceToStatus[r.status as AttendanceStatus] || 'normal'
+    };
+  });
 }
 
 // Actualiza el estado de un alumno (llegada tardía, ausente, etc.)
@@ -150,7 +164,7 @@ export async function validateActiveCode(code: string): Promise<string | null> {
 
   if (labsError) throw labsError;
 
-  const labIds = (labs || []).map((lab: any) => lab.id);
+  const labIds = (labs || []).map((lab) => (lab as { id: number }).id);
   if (labIds.length === 0) return null;
 
   const db = await readDB();
@@ -181,11 +195,12 @@ export async function validateActiveCode(code: string): Promise<string | null> {
 
   if (classError) throw classError;
 
-  const activeClass = (classes || []).find((session: any) =>
-    isClassInProgress(session.dayOfWeek, session.startTime, session.endTime)
-  );
+  const activeClass = (classes || []).find((session) => {
+    const s = session as { dayOfWeek: number; startTime: string; endTime: string; id: number };
+    return isClassInProgress(s.dayOfWeek, s.startTime, s.endTime);
+  });
 
-  return activeClass ? String(activeClass.id) : null;
+  return activeClass ? String((activeClass as { id: number }).id) : null;
 }
 
 // Registra un alumno validando que el código siga siendo correcto

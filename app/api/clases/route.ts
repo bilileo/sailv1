@@ -71,10 +71,12 @@ const resolveAsignaturaId = async (name: string, color?: string | null) => {
 
 export async function GET(request: Request) {
   try {
-    const token = await getToken({ 
+    // `getToken` requires a typed request.
+    const token = (await getToken({ 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       req: request as any, 
       secret: process.env.NEXTAUTH_SECRET || "SAIL_Super_Secreto_Servicio_Social_2026!"
-    });
+    })) as { role?: string, id?: string } | null;
     
     if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
@@ -90,28 +92,33 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const formattedData = data.map((c: any) => {
-      const sHour = parseHour(c.startTime);
-      const eHour = parseHour(c.endTime);
+    const formattedData = data.map((c) => {
+      const row = c as Record<string, unknown>;
+      const sHour = parseHour(String(row.startTime ?? null));
+      const eHour = parseHour(String(row.endTime ?? null));
       if (sHour === null || eHour === null) return null;
 
+      const asignatura = row['Asignatura'] as Record<string, unknown> | undefined;
+      const laboratory = row['Laboratory'] as Record<string, unknown> | undefined;
+
       return {
-        id: c.id,
-        maestroId: c.teacherId, 
-        status: c.status,
-        nombre: c.Asignatura?.name || 'Sin Asignar',
-        laboratorio: c.Laboratory ? c.Laboratory.name : 'Sin Asignar',
-        laboratorioId: c.Laboratory?.id || c.laboratoryId,
-        dayOfWeek: c.dayOfWeek,
+        id: row['id'],
+        maestroId: row['teacherId'], 
+        status: row['status'],
+        nombre: asignatura?.['name'] || 'Sin Asignar',
+        laboratorio: laboratory ? laboratory['name'] : 'Sin Asignar',
+        laboratorioId: laboratory?.['id'] || row['laboratoryId'],
+        dayOfWeek: row['dayOfWeek'],
         horario: `${sHour}:00 - ${eHour}:00`,
-        color: c.Asignatura?.color || '#3B82F6'
+        color: asignatura?.['color'] || '#3B82F6'
       };
     }).filter(Boolean); 
 
     return NextResponse.json(formattedData);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error en GET clases:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -159,8 +166,9 @@ export async function POST(request: Request) {
       
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: any) { 
-    return NextResponse.json({ error: error.message }, { status: 500 }); 
+  } catch (error: unknown) { 
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 }); 
   }
 }
 
@@ -223,9 +231,10 @@ export async function PUT(request: Request) {
       
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: any) { 
+  } catch (error: unknown) { 
     console.error("Error en PUT:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 }); 
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 }); 
   }
 }
 
@@ -243,7 +252,8 @@ export async function DELETE(request: Request) {
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

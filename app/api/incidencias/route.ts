@@ -20,22 +20,26 @@ export async function GET() {
 
     if (error) throw error;
 
-    const formattedData = data.map((i: any) => ({
-      id: i.id,
-      title: i.title,
-      message: i.description,
-      status: i.status,
-      createdAt: i.createdAt,
-      classSessionId: i.classSessionId,
-      reportedById: i.reportedById,
-      clase: i.ClassSession?.Asignatura?.name,
-      laboratorio: i.Laboratory?.name || i.ClassSession?.Laboratory?.name,
-      reportador: i.User?.name
-    }));
+    const formattedData = data.map((i) => {
+      const row = i as Record<string, unknown>;
+      return {
+        id: row['id'],
+        title: row['title'],
+        message: row['description'],
+        status: row['status'],
+        createdAt: row['createdAt'],
+        classSessionId: row['classSessionId'],
+        reportedById: row['reportedById'],
+        clase: ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Asignatura'] as Record<string, unknown> | undefined)?.['name'],
+        laboratorio: (row['Laboratory'] as Record<string, unknown> | undefined)?.['name'] || ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Laboratory'] as Record<string, unknown> | undefined)?.['name'],
+        reportador: (row['User'] as Record<string, unknown> | undefined)?.['name']
+      };
+    });
 
     return NextResponse.json(formattedData);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -67,8 +71,9 @@ export async function POST(request: Request) {
 
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -76,7 +81,7 @@ export async function PUT(request: Request) {
   try {
     const data = await request.json();
     
-    let updatePayload: any = {};
+    let updatePayload: Record<string, unknown> = {};
     if (data.status) {
       updatePayload = { status: data.status };
       if (data.status === 'RESOLVED') {
@@ -109,8 +114,9 @@ export async function PUT(request: Request) {
 
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -125,7 +131,8 @@ export async function DELETE(request: Request) {
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

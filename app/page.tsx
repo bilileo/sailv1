@@ -4,6 +4,8 @@ import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle
 import { useRouter } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
 import { FormularioClase } from './FormularioClase';
+import { CatalogoClase } from './lib/attendance-types';
+import { Alumnos } from './Alumnos';
 import { GestionUsuarios } from './GestionUsuarios';
 import { GestionIncidencias } from './GestionIncidencias';
 import { Toaster } from 'sonner';
@@ -34,9 +36,11 @@ export default function SailAdminDashboard() {
   const router = useRouter();
   const [usuarioActivo, setUsuarioActivo] = useState<{id: string, name: string, role: string} | null>(null);
 
+  interface UserSession { id: string; name: string; role: string }
+
   useEffect(() => {
     getSession().then(session => {
-      if (session?.user) setUsuarioActivo(session.user as any);
+      if (session?.user) setUsuarioActivo(session.user as unknown as UserSession);
     });
   }, []);
 
@@ -45,6 +49,10 @@ export default function SailAdminDashboard() {
   const [activeTab, setActiveTab] = useState('Inicio');
   const [clases, setClases] = useState<Clase[]>([]);
   const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
+  const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  interface FormInitialValues { horario?: string; dia?: string; laboratorioId?: string; maestroId?: string; nombre?: string; duracion?: number; color?: string }
+  const [formInitialValues, setFormInitialValues] = useState<FormInitialValues | null>(null);
   
   const [diaFiltro, setDiaFiltro] = useState(() => {
     const hoy = new Date();
@@ -60,7 +68,17 @@ export default function SailAdminDashboard() {
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [editDuracion, setEditDuracion] = useState(1);
-  const [incidencias, setIncidencias] = useState<any[]>([]);
+  interface IncidenciaMinimal { 
+    id: string; 
+    status?: string; 
+    reportador?: string; 
+    message?: string; 
+    laboratorio?: string; 
+    clase?: string; 
+    classSessionId?: string; 
+    reportedById?: string; 
+  }
+  const [incidencias, setIncidencias] = useState<IncidenciaMinimal[]>([]);
   const [editStatus, setEditStatus] = useState('ACTIVE');
   const [editColor, setEditColor] = useState('bg-blue-600');
 
@@ -101,6 +119,9 @@ export default function SailAdminDashboard() {
     const resLabs = await fetch(`/api/laboratorios?t=${timestamp}`, { cache: 'no-store' });
     if (resLabs.ok) setLaboratorios(await resLabs.json());
 
+    const resCatalogo = await fetch(`/api/catalogo?t=${timestamp}`, { cache: 'no-store' });
+    if (resCatalogo.ok) setCatalogo(await resCatalogo.json());
+
     const resInc = await fetch(`/api/incidencias?t=${timestamp}`, { cache: 'no-store' });
     if (resInc.ok) setIncidencias(await resInc.json());
   };
@@ -113,7 +134,7 @@ export default function SailAdminDashboard() {
     return () => clearInterval(radar);
   }, []);
 
-  const handleCrearClase = async (datosClase: any) => {
+  const handleCrearClase = async (datosClase: import('./lib/attendance-types').NuevaClase) => {
     await fetch('/api/clases', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -123,6 +144,12 @@ export default function SailAdminDashboard() {
     
     setDiaFiltro(datosClase.dia);
     setActiveTab('Inicio'); 
+  };
+
+  const handleAbrirFormModal = (horario: string, nombreLab: string) => {
+    const lab = laboratorios.find(l => l.name === nombreLab);
+    setFormInitialValues({ horario, dia: diaFiltro, laboratorioId: lab?.id?.toString() });
+    setFormModalOpen(true);
   };
 
   const handleAbrirModal = (clase: Clase) => {
@@ -184,7 +211,7 @@ export default function SailAdminDashboard() {
       } else {
         toast.error('Error al intentar eliminar la clase');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error de red al comunicar con el servidor');
     } finally {
       setGuardandoEdicion(false);
@@ -243,7 +270,7 @@ export default function SailAdminDashboard() {
       } else {
         toast.error('Error al actualizar');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error de red');
     } finally {
       setGuardandoEdicion(false);
@@ -278,9 +305,9 @@ export default function SailAdminDashboard() {
 
     if (!encontrada) {
       return (
-        <div className="w-full h-full min-h-[64px] bg-green-700 text-white/60 flex flex-col items-center justify-center p-2 text-xs border-b border-green-800/50">
+        <button onClick={() => handleAbrirFormModal(hora, nombreLab)} className="w-full h-full min-h-[64px] bg-green-700 text-white/60 flex flex-col items-center justify-center p-2 text-xs border-b border-green-800/50 hover:brightness-110">
           Disponible
-        </div>
+        </button>
       );
     }
 
@@ -360,7 +387,7 @@ export default function SailAdminDashboard() {
     <div className="min-h-screen bg-gray-50 font-sans">
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
         <div className="flex space-x-8">
-          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Incidencias'].map(t => {
+          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Incidencias'].map(t => {
           if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
 
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
@@ -521,11 +548,30 @@ export default function SailAdminDashboard() {
         )}
 
         {activeTab === 'Clases' && (
-          <FormularioClase 
-            onClaseCreada={handleCrearClase} 
-            laboratorios={laboratorios} 
-            clases={clases} 
-          />
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold">Catálogo de Clases</h2>
+              <div className="flex gap-2">
+                <button onClick={() => setFormModalOpen(true)} className="px-3 py-2 bg-[#0b6e3f] text-white rounded">Agendar nueva clase</button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {catalogo.map(item => (
+                <div key={item.id} className="border p-4 rounded bg-white shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-sm">{item.name}</div>
+                    <div className="w-6 h-6 rounded-full" style={item.color && item.color.startsWith('#') ? { backgroundColor: item.color } : {}}></div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-2">Código: {item.materiaCode}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'Alumnos' && (
+          <Alumnos />
         )}
 
         {activeTab === 'Maestros' && (
@@ -767,7 +813,7 @@ export default function SailAdminDashboard() {
                 <h3 className="text-xl font-bold text-gray-800 mb-2">¿Eliminar clase?</h3>
                 
                 <p className="text-sm text-gray-600 mb-6">
-                  Estás a punto de eliminar permanentemente la clase <span className="font-bold text-gray-800">"{claseSeleccionada.nombre}"</span>. Esta acción liberará el horario y no se puede deshacer.
+                  Estás a punto de eliminar permanentemente la clase <span className="font-bold text-gray-800">&quot;{claseSeleccionada.nombre}&quot;</span>. Esta acción liberará el horario y no se puede deshacer.
                 </p>
                 
                 <div className="flex space-x-3 w-full">
@@ -848,6 +894,15 @@ export default function SailAdminDashboard() {
         richColors 
         closeButton
         theme="light"
+      />
+      {/** Formulario modal invoked from Disponibles or Clases tab */}
+      <FormularioClase
+        open={formModalOpen}
+        onClose={() => setFormModalOpen(false)}
+        initialValues={formInitialValues}
+        onClaseCreada={handleCrearClase}
+        laboratorios={laboratorios}
+        clases={clases}
       />
     </div>
   );

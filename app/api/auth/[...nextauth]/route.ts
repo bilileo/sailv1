@@ -29,18 +29,21 @@ export const authOptions: NextAuthOptions = {
         const passwordsMatch = await bcrypt.compare(credentials.password, user.password);
         if (!passwordsMatch) return null;
 
-        return { id: user.id, name: user.name, email: user.email, role: user.role } as any;
+        return { id: user.id, name: user.name, email: user.email, role: user.role } as { id: string; name: string; email: string; role?: string };
       }
     })
   ],
   pages: { signIn: '/login' },
   callbacks: {
     async jwt({ token, user }) {
-      if (user) { token.role = (user as any).role; token.id = user.id; }
+      if (user) { token.role = (user as { role?: string }).role; token.id = (user as { id?: string }).id; }
       return token;
     },
     async session({ session, token }) {
-      if (session?.user) { (session.user as any).role = token.role; (session.user as any).id = token.id; }
+      if (session?.user) {
+        (session.user as { role?: string; id?: string }).role = token.role as string;
+        (session.user as { role?: string; id?: string }).id = token.id as string;
+      }
       return session;
     }
   },

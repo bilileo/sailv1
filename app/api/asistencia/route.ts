@@ -56,25 +56,29 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const formattedData = (data || []).map((a: any) => ({
-      id: a.id,
-      classSessionId: a.classSessionId,
-      teacherId: a.teacherId,
-      studentId: a.studentId,
-      registrationCode: a.registrationCode,
-      deviceType: a.DeviceType?.name,
-      status: a.status,
-      checkInTime: a.checkInTime,
-      checkOutTime: a.checkOutTime,
-      alumno: a.Student?.name,
-      email: a.Student?.email,
-      clase: a.ClassSession?.Asignatura?.name,
-      laboratorio: a.ClassSession?.Laboratory?.name
-    }));
+    const formattedData = (data || []).map((a) => {
+      const row = a as Record<string, unknown>;
+      return {
+        id: row['id'],
+        classSessionId: row['classSessionId'],
+        teacherId: row['teacherId'],
+        studentId: row['studentId'],
+        registrationCode: row['registrationCode'],
+        deviceType: (row['DeviceType'] as Record<string, unknown> | undefined)?.['name'],
+        status: row['status'],
+        checkInTime: row['checkInTime'],
+        checkOutTime: row['checkOutTime'],
+        alumno: (row['Student'] as Record<string, unknown> | undefined)?.['name'],
+        email: (row['Student'] as Record<string, unknown> | undefined)?.['email'],
+        clase: ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Asignatura'] as Record<string, unknown> | undefined)?.['name'],
+        laboratorio: ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Laboratory'] as Record<string, unknown> | undefined)?.['name']
+      };
+    });
 
     return NextResponse.json(formattedData);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -88,7 +92,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tipo de dispositivo invalido' }, { status: 400 });
     }
 
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       classSessionId: body.classSessionId,
       teacherId: body.teacherId,
       studentId: body.studentId,
@@ -105,8 +109,9 @@ export async function POST(request: Request) {
 
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -118,7 +123,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'ID no proporcionado' }, { status: 400 });
     }
 
-    const updatePayload: any = {};
+    const updatePayload: Record<string, unknown> = {};
     if (body.classSessionId) updatePayload.classSessionId = body.classSessionId;
     if (body.teacherId) updatePayload.teacherId = body.teacherId;
     if (body.studentId) updatePayload.studentId = body.studentId;
@@ -145,8 +150,9 @@ export async function PUT(request: Request) {
 
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -161,7 +167,8 @@ export async function DELETE(request: Request) {
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

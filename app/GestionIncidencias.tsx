@@ -9,9 +9,9 @@ export function GestionIncidencias({
   usuarioActivo, 
   onIncidenciaActualizada 
 }: { 
-  incidencias: any[], 
-  clases: any[], 
-  usuarioActivo: any,
+  incidencias: Array<{ id: string; status?: string; message?: string; laboratorio?: string; clase?: string; reportador?: string; classSessionId?: string; reportedById?: string }>, 
+  clases: Array<{ id: string; laboratorio?: string; nombre?: string; maestroId?: string }>, 
+  usuarioActivo: { id?: string; role?: string } | null,
   onIncidenciaActualizada: () => void 
 }) {
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -25,15 +25,15 @@ export function GestionIncidencias({
 
   // Modales de Confirmación
   const [incidenciaAResolver, setIncidenciaAResolver] = useState<string | null>(null);
-  const [incidenciaAEliminar, setIncidenciaAEliminar] = useState<any | null>(null);
+  const [incidenciaAEliminar, setIncidenciaAEliminar] = useState< { id?: string } | null >(null);
   const [procesandoAccion, setProcesandoAccion] = useState(false);
 
-  const abrirModalFormulario = (inc?: any) => {
+  const abrirModalFormulario = (inc?: { id?: string; classSessionId?: string; message?: string }) => {
     setError('');
     if (inc) {
-      setEditId(inc.id);
-      setClaseId(inc.classSessionId);
-      setMensaje(inc.message);
+      setEditId(inc.id || null);
+      setClaseId(inc.classSessionId || '');
+      setMensaje(inc.message || '');
     } else {
       setEditId(null);
       setClaseId('');
@@ -55,7 +55,7 @@ export function GestionIncidencias({
     const body = JSON.stringify(
       editId 
         ? { id: editId, classSessionId: claseId, message: mensaje } // Modo Edición
-        : { classSessionId: claseId, reportedById: usuarioActivo.id, message: mensaje } // Modo Creación
+        : { classSessionId: claseId, reportedById: usuarioActivo?.id, message: mensaje } // Modo Creación
     );
 
     try {

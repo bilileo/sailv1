@@ -30,6 +30,18 @@ const getMinutesNow = (fecha: Date) => fecha.getHours() * 60 + fecha.getMinutes(
 // Función auxiliar: Genera un código alfanumérico aleatorio de 6 caracteres
 const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
+interface ClaseDash {
+  id: string;
+  maestroId?: string;
+  status: string;
+  nombre: string;
+  laboratorio: string;
+  laboratorioId: string;
+  dayOfWeek: number;
+  horario: string;
+  color: string;
+}
+
 export default function TeacherDashboard() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -42,11 +54,10 @@ export default function TeacherDashboard() {
   const [classStatus, setClassStatus] = useState<'scheduled' | 'inProgress' | 'finished'>('scheduled');
   const [openReportFor, setOpenReportFor] = useState<string | null>(null);
   const [usuarioActivo, setUsuarioActivo] = useState<{ id: string; name: string; role: string } | null>(null);
-  const [claseInfo, setClaseInfo] = useState<any | null>(null);
+  const [claseInfo, setClaseInfo] = useState<ClaseDash | null>(null);
   const [maestroNombre, setMaestroNombre] = useState('');
   const [cargandoClase, setCargandoClase] = useState(false);
   const [claseNoEncontrada, setClaseNoEncontrada] = useState(false);
-  const isMaestro = usuarioActivo?.role === 'MAESTRO';
   const [faseClase, setFaseClase] = useState<'scheduled' | 'inProgress' | 'ended'>('scheduled');
   const [manualOpen, setManualOpen] = useState(false);
   const [manualId, setManualId] = useState('');
@@ -57,15 +68,17 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     getSession().then(session => {
-      if (session?.user) setUsuarioActivo(session.user as any);
+      if (session?.user) setUsuarioActivo(session.user as { id: string; name: string; role: string });
     });
   }, []);
 
   useEffect(() => {
     if (!classId) {
-      setClaseInfo(null);
-      setMaestroNombre('');
-      setClaseNoEncontrada(false);
+      setTimeout(() => {
+        setClaseInfo(null);
+        setMaestroNombre('');
+        setClaseNoEncontrada(false);
+      }, 0);
       return;
     }
 
@@ -85,7 +98,7 @@ export default function TeacherDashboard() {
       }
 
       const data = await resClases.json();
-      const encontrada = data.find((c: any) => String(c.id) === String(classId)) || null;
+      const encontrada = data.find((c: Record<string, unknown>) => String(c['id']) === String(classId)) || null;
 
       if (!encontrada) {
         setClaseInfo(null);
@@ -101,7 +114,7 @@ export default function TeacherDashboard() {
         const resMaestros = await fetch(`/api/maestros?t=${timestamp}`, { cache: 'no-store' });
         if (resMaestros.ok) {
           const maestros = await resMaestros.json();
-          const maestro = maestros.find((m: any) => m.id === encontrada.maestroId);
+          const maestro = maestros.find((m: { id: string; name: string }) => m.id === encontrada.maestroId);
           setMaestroNombre(maestro?.name || usuarioActivo?.name || '');
         } else {
           setMaestroNombre(usuarioActivo?.name || '');
@@ -116,15 +129,15 @@ export default function TeacherDashboard() {
     cargarClase();
   }, [classId, usuarioActivo?.name]);
 
-  const actualizarEstadoClase = async (nuevoEstado: 'ENDED' | 'ACTIVE') => {
+  const actualizarEstadoClase = React.useCallback(async (nuevoEstado: 'ENDED' | 'ACTIVE') => {
     if (!claseInfo?.id) return;
     await fetch('/api/clases', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: claseInfo.id, status: nuevoEstado })
     });
-    setClaseInfo((prev: any) => (prev ? { ...prev, status: nuevoEstado } : prev));
-  };
+    setClaseInfo((prev) => (prev ? { ...prev, status: nuevoEstado } : prev));
+  }, [claseInfo]);
 
   useEffect(() => {
     if (!claseInfo) return;
@@ -188,7 +201,7 @@ export default function TeacherDashboard() {
     evaluarFase();
     const interval = setInterval(evaluarFase, 30000);
     return () => clearInterval(interval);
-  }, [claseInfo]);
+  }, [claseInfo, actualizarEstadoClase]);
 
   // === CARGA INICIAL Y POLLING DE DATOS (TIEMPO REAL SIMULADO) ===
   useEffect(() => {
@@ -231,7 +244,9 @@ export default function TeacherDashboard() {
 
     // Inicializar el primer código
     const initialCode = generateCode();
-    setCurrentCode(initialCode);
+    setTimeout(() => {
+      setCurrentCode(initialCode);
+    }, 0);
     updateActiveCode(String(claseInfo.laboratorioId), initialCode); // Guardar en el JSON
 
     const timer = setInterval(() => {
