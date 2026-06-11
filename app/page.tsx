@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
 import { FormularioClase } from './FormularioClase';
 import { CatalogoClase } from './lib/attendance-types';
+import { CatalogoClases } from './CatalogoClases';
 import { Alumnos } from './Alumnos';
 import { GestionUsuarios } from './GestionUsuarios';
 import { GestionIncidencias } from './GestionIncidencias';
@@ -51,7 +52,7 @@ export default function SailAdminDashboard() {
   const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
   const [formModalOpen, setFormModalOpen] = useState(false);
-  interface FormInitialValues { horario?: string; dia?: string; laboratorioId?: string; maestroId?: string; nombre?: string; duracion?: number; color?: string }
+  interface FormInitialValues { horario?: string; dia?: string; laboratorioId?: string }
   const [formInitialValues, setFormInitialValues] = useState<FormInitialValues | null>(null);
   
   const [diaFiltro, setDiaFiltro] = useState(() => {
@@ -548,26 +549,7 @@ export default function SailAdminDashboard() {
         )}
 
         {activeTab === 'Clases' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold">Catálogo de Clases</h2>
-              <div className="flex gap-2">
-                <button onClick={() => setFormModalOpen(true)} className="px-3 py-2 bg-[#0b6e3f] text-white rounded">Agendar nueva clase</button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {catalogo.map(item => (
-                <div key={item.id} className="border p-4 rounded bg-white shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="font-bold text-sm">{item.name}</div>
-                    <div className="w-6 h-6 rounded-full" style={item.color && item.color.startsWith('#') ? { backgroundColor: item.color } : {}}></div>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-2">Código: {item.materiaCode}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <CatalogoClases />
         )}
 
         {activeTab === 'Alumnos' && (
@@ -813,7 +795,7 @@ export default function SailAdminDashboard() {
                 <h3 className="text-xl font-bold text-gray-800 mb-2">¿Eliminar clase?</h3>
                 
                 <p className="text-sm text-gray-600 mb-6">
-                  Estás a punto de eliminar permanentemente la clase <span className="font-bold text-gray-800">&quot;{claseSeleccionada.nombre}&quot;</span>. Esta acción liberará el horario y no se puede deshacer.
+                  Estás a punto de eliminar permanentemente la clase <span className="font-bold text-gray-800">"{claseSeleccionada.nombre}"</span>. Esta acción liberará el horario y no se puede deshacer.
                 </p>
                 
                 <div className="flex space-x-3 w-full">
@@ -895,14 +877,14 @@ export default function SailAdminDashboard() {
         closeButton
         theme="light"
       />
-      {/** Formulario modal invoked from Disponibles or Clases tab */}
+      {/** Formulario modal invocado desde los espacios Disponibles */}
       <FormularioClase
-        open={formModalOpen}
-        onClose={() => setFormModalOpen(false)}
         initialValues={formInitialValues}
         onClaseCreada={handleCrearClase}
         laboratorios={laboratorios}
         clases={clases}
+        open={formModalOpen}
+        onClose={() => setFormModalOpen(false)}
       />
     </div>
   );

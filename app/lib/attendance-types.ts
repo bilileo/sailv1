@@ -7,11 +7,10 @@ export interface StudentRow {
 }
 
 export interface CatalogoClase {
-  id: number;
+  id: string;
   name: string;
   materiaCode: string;
-  color?: string | null;
-  created_at?: string;
+  color?: string;
 }
 
 export interface Alumno {

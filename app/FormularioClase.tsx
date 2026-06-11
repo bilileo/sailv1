@@ -35,9 +35,9 @@ const PALETA_COLORES = [
   { id: 'teal', clase: 'bg-teal-600', hover: 'hover:bg-teal-700' },
 ];
 
-export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onClose, initialValues }: FormularioClaseProps) => {
+export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, clases, open, onClose }: FormularioClaseProps) => {
   const [nombre, setNombre] = useState('');
-  const [lab, setLab] = useState(initialValues?.laboratorioId || ''); 
+  const [lab, setLab] = useState(initialValues?.laboratorioId || '');
   const [maestro, setMaestro] = useState('');
   const [dia, setDia] = useState(initialValues?.dia || 'Lunes');
   const [duracion, setDuracion] = useState(initialValues?.duracion || 1);
@@ -71,7 +71,7 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onC
   // 1. Generamos opciones de horario basadas en la duración
   const generarOpcionesHorario = (duracionHoras: number) => {
     const maxInicio = 24 - duracionHoras;
-    return Array.from({ length: maxInicio + 1 }, (_, i) => 
+    return Array.from({ length: maxInicio + 1 }, (_, i) =>
       `${i}:00- ${i + duracionHoras}:00`
     );
   };
@@ -144,89 +144,88 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onC
     }
   }, [lab, dia, duracion, clases, opcionesHorario, horario, esDisponible]);
 
- const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  // Limpiar errores previos
-  setErrores({});
-  const nuevosErrores: typeof errores = {};
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
 
-  // Validaciones
-  if (!nombre.trim()) {
-    nuevosErrores.nombre = 'Por favor, ingresa el nombre de la asignatura';
-  } else if (nombre.trim().length < 3) {
-    nuevosErrores.nombre = 'El nombre debe tener al menos 3 caracteres';
-  }
+    // Limpiar errores previos
+    setErrores({});
+    const nuevosErrores: typeof errores = {};
 
-  if (!lab || lab === '') {
-    nuevosErrores.lab = 'Debes seleccionar un laboratorio';
-  }
+    // Validaciones
+    if (!nombre.trim()) {
+      nuevosErrores.nombre = 'Por favor, ingresa el nombre de la asignatura';
+    } else if (nombre.trim().length < 3) {
+      nuevosErrores.nombre = 'El nombre debe tener al menos 3 caracteres';
+    }
 
-  if (!maestro || maestro === '') {
-    nuevosErrores.maestro = 'Debes seleccionar un maestro';
-  }
+    if (!lab || lab === '') {
+      nuevosErrores.lab = 'Debes seleccionar un laboratorio';
+    }
 
-  if (!horario) {
-    nuevosErrores.horario = 'Debes seleccionar un bloque horario disponible';
-  }
+    if (!maestro || maestro === '') {
+      nuevosErrores.maestro = 'Debes seleccionar un maestro';
+    }
 
-  // Si hay errores, mostrarlos y retornar
-  if (Object.keys(nuevosErrores).length > 0) {
-    setErrores(nuevosErrores);
-    toast.error('Por favor completa todos los campos correctamente');
-    return;
-  }
+    if (!horario) {
+      nuevosErrores.horario = 'Debes seleccionar un bloque horario disponible';
+    }
 
-  setEnviando(true);
+    // Si hay errores, mostrarlos y retornar
+    if (Object.keys(nuevosErrores).length > 0) {
+      setErrores(nuevosErrores);
+      toast.error('Por favor completa todos los campos correctamente');
+      return;
+    }
 
-  const datosClase = {
-    nombre,
-    laboratorioId: lab,
-    maestroId: maestro,
-    dia,
-    horario,
-    duracion,
-    color: colorFondo
+    setEnviando(true);
+
+    const datosClase = {
+      nombre,
+      laboratorioId: lab,
+      maestroId: maestro,
+      dia,
+      horario,
+      duracion,
+      color: colorFondo
+    };
+
+    onClaseCreada(datosClase);
+
+    // Mostrar notificación de éxito
+    toast.success('Clase agregada exitosamente al calendario', {
+      description: `${nombre} - ${dia} ${horario}`,
+      duration: 3000,
+    });
+
+    if (onClose) onClose();
+
+    // Limpiar formulario
+    setNombre('');
+    setColorFondo(PALETA_COLORES[0].clase);
+    setErrores({});
+    setEnviando(false);
   };
-
-  onClaseCreada(datosClase);
-  
-  // Mostrar notificación de éxito
-  toast.success('Clase agregada exitosamente al calendario', {
-    description: `${nombre} - ${dia} ${horario}`,
-    duration: 3000,
-  });
-
-  if (onClose) onClose();
-
-  // Limpiar formulario
-  setNombre('');
-  setColorFondo(PALETA_COLORES[0].clase);
-  setErrores({});
-  setEnviando(false);
-};
 
   const card = (
     <div className="max-w-md bg-white border border-gray-200 p-6 rounded-sm shadow-sm text-black">
       <h2 className="text-xl font-bold mb-6 flex items-center text-[#0b6e3f]">
         <Plus className="w-5 h-5 mr-2" /> Agendar Clase
       </h2>
-      
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-bold text-gray-800 mb-1">Asignatura</label>
-          <input 
-            type="text" 
-            value={nombre} 
+          <input
+            type="text"
+            value={nombre}
             onChange={(e) => {
               setNombre(e.target.value);
               if (errores.nombre) setErrores({ ...errores, nombre: undefined });
             }}
-            className={`w-full border-2 rounded-sm px-3 py-2 text-sm outline-none focus:ring-2 text-black font-medium transition-colors ${
-              errores.nombre 
-                ? 'border-red-500 focus:ring-red-500 bg-red-50' 
+            className={`w-full border-2 rounded-sm px-3 py-2 text-sm outline-none focus:ring-2 text-black font-medium transition-colors ${errores.nombre
+                ? 'border-red-500 focus:ring-red-500 bg-red-50'
                 : 'border-gray-300 focus:ring-[#0b6e3f]'
-            }`}
+              }`}
             placeholder="Nombre de la clase"
           />
           {errores.nombre && (
@@ -240,17 +239,16 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onC
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Laboratorio</label>
-            <select 
-              value={lab} 
+            <select
+              value={lab}
               onChange={(e) => {
                 setLab(e.target.value);
                 if (errores.lab) setErrores({ ...errores, lab: undefined });
               }}
-              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
-                errores.lab 
-                  ? 'border-red-500 bg-red-50' 
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.lab
+                  ? 'border-red-500 bg-red-50'
                   : 'border-gray-300'
-              }`}
+                }`}
             >
               <option value="">Seleccionar...</option>
               {laboratorios.map((l) => (
@@ -266,17 +264,16 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onC
           </div>
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Maestro</label>
-            <select 
-              value={maestro} 
+            <select
+              value={maestro}
               onChange={(e) => {
                 setMaestro(e.target.value);
                 if (errores.maestro) setErrores({ ...errores, maestro: undefined });
               }}
-              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
-                errores.maestro 
-                  ? 'border-red-500 bg-red-50' 
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.maestro
+                  ? 'border-red-500 bg-red-50'
                   : 'border-gray-300'
-              }`}
+                }`}
             >
               <option value="">Seleccionar...</option>
               {maestros.map((m) => (
@@ -297,9 +294,9 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onC
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Día</label>
-            <select 
-              value={dia} 
-              onChange={(e) => setDia(e.target.value)} 
+            <select
+              value={dia}
+              onChange={(e) => setDia(e.target.value)}
               className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium"
             >
               {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(d => (
@@ -309,9 +306,9 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onC
           </div>
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Duración (horas)</label>
-            <select 
-              value={duracion} 
-              onChange={(e) => setDuracion(parseInt(e.target.value))} 
+            <select
+              value={duracion}
+              onChange={(e) => setDuracion(parseInt(e.target.value))}
               className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map(h => (
@@ -323,16 +320,16 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onC
 
         <div>
           <label className="block text-sm font-bold text-gray-800 mb-1">Bloque Horario</label>
-          <select 
-            value={horario} 
-            onChange={(e) => setHorario(e.target.value)} 
+          <select
+            value={horario}
+            onChange={(e) => setHorario(e.target.value)}
             className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium"
           >
             {opcionesHorario.map(h => (
-              <option 
-                key={h} 
-                value={h} 
-                disabled={!esDisponible(h)} 
+              <option
+                key={h}
+                value={h}
+                disabled={!esDisponible(h)}
                 className={!esDisponible(h) ? 'text-gray-400 bg-gray-100' : 'text-black'}
               >
                 {h} {!esDisponible(h) ? '(Ocupado)' : ''}
@@ -347,25 +344,23 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onC
             <button
               key={c.id}
               type="button"
-              onClick={() => setColorFondo(c.clase)} 
-              className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${
-                colorFondo === c.clase 
-                  ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md' 
+              onClick={() => setColorFondo(c.clase)}
+              className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${colorFondo === c.clase
+                  ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
                   : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
-              }`}
+                }`}
               title="Color predefinido"
             />
           ))}
 
           {/* Selector personalizado (Botón Arcoíris) */}
-          <label 
-            className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${
-              colorFondo.startsWith('#') 
-                ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md' 
+          <label
+            className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${colorFondo.startsWith('#')
+                ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
                 : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
-            }`}
+              }`}
             style={
-              colorFondo.startsWith('#') 
+              colorFondo.startsWith('#')
                 ? { backgroundColor: colorFondo } // Si ya eligió uno, mostramos el color personalizado
                 : { background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' } // Si no arcoíris
             }
@@ -373,21 +368,20 @@ export const FormularioClase = ({ onClaseCreada, laboratorios, clases, open, onC
           >
             <input
               type="color"
-              value={colorFondo.startsWith('#') ? colorFondo : '#0b6e3f'} 
+              value={colorFondo.startsWith('#') ? colorFondo : '#0b6e3f'}
               onChange={(e) => setColorFondo(e.target.value)}
               className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
             />
           </label>
         </div>
 
-        <button 
+        <button
           type="submit"
           disabled={enviando}
-          className={`w-full text-white py-3 rounded-sm font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 ${
-            enviando 
-              ? 'bg-gray-400 cursor-not-allowed' 
+          className={`w-full text-white py-3 rounded-sm font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 ${enviando
+              ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-[#0b6e3f] hover:bg-green-800'
-          }`}
+            }`}
         >
           {enviando ? (
             <>

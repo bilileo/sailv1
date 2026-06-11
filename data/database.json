@@ -1,7 +1,10 @@
 {
   "activeCodes": {
     "1": null,
-    "2": null,
+    "2": {
+      "code": "CDKZ5K",
+      "expiresAt": "2026-06-11T05:06:13.540Z"
+    },
     "18": null,
     "19": null,
     "20": null,

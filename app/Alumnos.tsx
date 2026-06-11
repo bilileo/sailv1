@@ -23,9 +23,7 @@ export function Alumnos() {
     password?: string;
   }>({});
 
-
-
-  // Estados apra el modal de Eliminación
+  // Estados para el modal de Eliminación
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [estudianteAEliminar, setEstudianteAEliminar] = useState<StudentMinimal | null>(null);
   const [eliminando, setEliminando] = useState(false);
@@ -347,7 +345,7 @@ export function Alumnos() {
             <h3 className="text-xl font-bold text-gray-800 mb-2">¿Eliminar a {estudianteAEliminar.name}?</h3>
 
             <p className="text-sm text-gray-600 mb-6">
-              Estás a punto de eliminar permanentemente a <span className="font-bold text-gray-800">&quot;{estudianteAEliminar.name}&quot;</span>. Esta acción no se puede deshacer.
+              Estás a punto de eliminar permanentemente a <span className="font-bold text-gray-800">"{estudianteAEliminar.name}"</span>. Esta acción no se puede deshacer.
             </p>
 
             <div className="flex space-x-3 w-full">
