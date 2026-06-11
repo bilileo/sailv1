@@ -1,7 +1,11 @@
 {
   "activeCodes": {
     "1": null,
-    "2": null,
+    "2": {
+      "code": "ZWHOWY",
+      "expiresAt": "2026-06-11T21:17:40.681Z"
+    },
+    "3": null,
     "18": null,
     "19": null,
     "20": null,

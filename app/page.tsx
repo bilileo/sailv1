@@ -35,7 +35,7 @@ const getNombreDia = (dayOfWeek?: number) => {
 
 export default function SailAdminDashboard() {
   const router = useRouter();
-  const [usuarioActivo, setUsuarioActivo] = useState<{id: string, name: string, role: string} | null>(null);
+  const [usuarioActivo, setUsuarioActivo] = useState<{ id: string, name: string, role: string } | null>(null);
 
   interface UserSession { id: string; name: string; role: string }
 
@@ -54,7 +54,7 @@ export default function SailAdminDashboard() {
   const [formModalOpen, setFormModalOpen] = useState(false);
   interface FormInitialValues { horario?: string; dia?: string; laboratorioId?: string }
   const [formInitialValues, setFormInitialValues] = useState<FormInitialValues | null>(null);
-  
+
   const [diaFiltro, setDiaFiltro] = useState(() => {
     const hoy = new Date();
     return mapaDias[hoy.getDay()];
@@ -69,22 +69,22 @@ export default function SailAdminDashboard() {
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [editDuracion, setEditDuracion] = useState(1);
-  interface IncidenciaMinimal { 
-    id: string; 
-    status?: string; 
-    reportador?: string; 
-    message?: string; 
-    laboratorio?: string; 
-    clase?: string; 
-    classSessionId?: string; 
-    reportedById?: string; 
+  interface IncidenciaMinimal {
+    id: string;
+    status?: string;
+    reportador?: string;
+    message?: string;
+    laboratorio?: string;
+    clase?: string;
+    classSessionId?: string;
+    reportedById?: string;
   }
   const [incidencias, setIncidencias] = useState<IncidenciaMinimal[]>([]);
   const [editStatus, setEditStatus] = useState('ACTIVE');
   const [editColor, setEditColor] = useState('bg-blue-600');
 
   const labNombreEdicion = laboratorios.find(l => l.id.toString() === editLab)?.name;
-  
+
   const horariosOcupadosEdicion = clases
     .filter(c => {
       // 2. Usamos nuestra función getNombreDia en lugar de new Date(startTime)
@@ -141,10 +141,10 @@ export default function SailAdminDashboard() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(datosClase)
     });
-    await cargarDatosBD(); 
-    
+    await cargarDatosBD();
+
     setDiaFiltro(datosClase.dia);
-    setActiveTab('Inicio'); 
+    setActiveTab('Inicio');
   };
 
   const handleAbrirFormModal = (horario: string, nombreLab: string) => {
@@ -162,7 +162,7 @@ export default function SailAdminDashboard() {
     setEditHorario(clase.horario);
     setEditStatus(clase.status || 'ACTIVE');
     setEditColor(clase.color || 'bg-blue-600');
-    
+
     const hI = parseInt(clase.horario.split('-')[0]);
     const hF = parseInt(clase.horario.split('-')[1]);
     setEditDuracion(hF - hI);
@@ -204,7 +204,7 @@ export default function SailAdminDashboard() {
 
     try {
       const res = await fetch(`/api/clases?id=${claseSeleccionada.id}`, { method: 'DELETE' });
-      
+
       if (res.ok) {
         toast.success('Clase eliminada permanentemente');
         cerrarModalEdicion();
@@ -221,7 +221,7 @@ export default function SailAdminDashboard() {
 
   const handleGuardarEdicion = async () => {
     if (!claseSeleccionada) return;
-    
+
     setErroresEdicion({});
     const nuevosErrores: { nombre?: string; lab?: string; horario?: string } = {};
 
@@ -242,13 +242,13 @@ export default function SailAdminDashboard() {
     if (Object.keys(nuevosErrores).length > 0) {
       setErroresEdicion(nuevosErrores);
       toast.error('Por favor corrige los errores antes de guardar');
-      return; 
+      return;
     }
 
     setGuardandoEdicion(true);
-    
+
     try {
-        const res = await fetch('/api/clases', {
+      const res = await fetch('/api/clases', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -256,7 +256,7 @@ export default function SailAdminDashboard() {
           nombre: editNombre,
           laboratorioId: editLab,
           horario: editHorario,
-          duracion: editDuracion, 
+          duracion: editDuracion,
           // 3. Usamos getNombreDia para el payload de edición
           dia: getNombreDia(claseSeleccionada!.dayOfWeek),
           status: editStatus,
@@ -283,7 +283,7 @@ export default function SailAdminDashboard() {
   const salonesOcupados = new Set(clasesDelDia.map(c => c.laboratorio)).size;
 
   const laboratoriosUnicos = Array.from(new Set(clasesDelDia.map(c => c.laboratorio)));
-  const textoLaboratorios = laboratoriosUnicos.length > 1 
+  const textoLaboratorios = laboratoriosUnicos.length > 1
     ? laboratoriosUnicos.slice(0, -1).join(', ') + ' y ' + laboratoriosUnicos[laboratoriosUnicos.length - 1]
     : laboratoriosUnicos[0] || 'Ninguno';
 
@@ -293,21 +293,21 @@ export default function SailAdminDashboard() {
     const diaFiltroIdx = mapaDias.indexOf(diaFiltro);
     const esDiaActual = diaFiltroIdx === hoyIdx;
     const horaSistema = new Date().getHours();
-    
+
     const encontrada = clasesDelDia.find(c => {
       if (c.laboratorio !== nombreLab) return false;
-      
+
       const partes = c.horario.split('-');
       const horaInicio = parseInt(partes[0].trim().split(':')[0]);
       const horaFin = partes[1].trim() === '24:00' ? 24 : parseInt(partes[1].trim().split(':')[0]);
-      
+
       return horaActual >= horaInicio && horaActual < horaFin;
     });
 
     if (!encontrada) {
       return (
-        <button onClick={() => handleAbrirFormModal(hora, nombreLab)} className="w-full h-full min-h-[64px] bg-green-700 text-white/60 flex flex-col items-center justify-center p-2 text-xs border-b border-green-800/50 hover:brightness-110">
-          Disponible
+        <button onClick={() => handleAbrirFormModal(hora, nombreLab)} className="w-full h-full min-h-16 bg-green-700 text-white/60 flex flex-col items-center justify-center p-2 text-xs border-b border-green-800/50 hover:brightness-110">
+          Disponible <span className="text-[10px]">(Haga click para agendar)</span>
         </button>
       );
     }
@@ -326,23 +326,23 @@ export default function SailAdminDashboard() {
     const esHex = colorClase.startsWith('#');
 
     return (
-      <button 
+      <button
         onClick={() => handleAbrirAcciones(encontrada)}
         style={esHex && !esMantenimiento && !esFinalizada ? { backgroundColor: colorClase } : {}}
         className={`w-full h-full min-h-[64px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-all focus:outline-none 
-          ${esMantenimiento 
-            ? 'bg-gray-500 border-gray-600' 
+          ${esMantenimiento
+            ? 'bg-gray-500 border-gray-600'
             : esFinalizada
-            ? 'bg-red-600 border-red-700'
-            : esProgramada
-            ? `${!esHex ? colorClase : ''} opacity-80 border-black/10` // Si es tailwind, pone la clase
-            : `${!esHex ? colorClase : ''} border-black/10`
+              ? 'bg-red-600 border-red-700'
+              : esProgramada
+                ? `${!esHex ? colorClase : ''} opacity-80 border-black/10` // Si es tailwind, pone la clase
+                : `${!esHex ? colorClase : ''} border-black/10`
           } 
-          ${esMantenimiento 
-            ? 'hover:bg-gray-600 cursor-pointer' 
-            : esFinalizada 
-            ? 'hover:bg-red-700 cursor-pointer' 
-            : 'hover:brightness-110 cursor-pointer' /* <--- Hover universal para iluminar cualquier color de la paleta */
+          ${esMantenimiento
+            ? 'hover:bg-gray-600 cursor-pointer'
+            : esFinalizada
+              ? 'hover:bg-red-700 cursor-pointer'
+              : 'hover:brightness-110 cursor-pointer' /* <--- Hover universal para iluminar cualquier color de la paleta */
           }
         `}
       >
@@ -370,7 +370,7 @@ export default function SailAdminDashboard() {
             )}
           </>
         )}
-        
+
         {!isMaestro ? (
           <span className="text-[9px] mt-1 opacity-80 text-white/70">
             (Acciones)
@@ -389,19 +389,18 @@ export default function SailAdminDashboard() {
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
         <div className="flex space-x-8">
           {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Incidencias'].map(t => {
-          if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
+            if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
 
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
 
             return (
-              <button 
-                key={t} 
-                onClick={() => setActiveTab(t)} 
-                className={`text-sm font-bold transition-colors ${
-                  activeTab === t 
-                    ? 'text-black border-b-2 border-black' 
+              <button
+                key={t}
+                onClick={() => setActiveTab(t)}
+                className={`text-sm font-bold transition-colors ${activeTab === t
+                    ? 'text-black border-b-2 border-black'
                     : 'text-gray-500 hover:text-gray-700'
-                }`}
+                  }`}
               >
                 {t}
               </button>
@@ -410,16 +409,16 @@ export default function SailAdminDashboard() {
         </div>
         <div className="flex items-center space-x-4 text-sm font-bold">
           <div className="flex items-center text-gray-700">
-            <User className="w-4 h-4 mr-2"/> 
+            <User className="w-4 h-4 mr-2" />
             {usuarioActivo ? `${usuarioActivo.name} (${usuarioActivo.role})` : 'Cargando...'}
           </div>
           <button onClick={async () => {
-              await signOut({ redirect: false });
-              window.location.href = '/login'; 
-            }}className="text-red-500 hover:text-red-700 flex items-center space-x-1">
+            await signOut({ redirect: false });
+            window.location.href = '/login';
+          }} className="text-red-500 hover:text-red-700 flex items-center space-x-1">
             <LogOut className="w-4 h-4" />
             <span>Cerrar Sesión</span>
-            </button>
+          </button>
         </div>
       </nav>
 
@@ -434,7 +433,7 @@ export default function SailAdminDashboard() {
             </div>
 
             <div className={`grid gap-6 ${isMaestro ? 'grid-cols-2' : 'grid-cols-3'}`}>
-              
+
               {/* TARJETA 1 */}
               <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
                 <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
@@ -471,8 +470,8 @@ export default function SailAdminDashboard() {
                 {/* flex-grow*/}
                 <div className="bg-yellow-500 px-4 py-6 text-white flex-grow">
                   <div className="text-5xl font-bold">
-                    {isMaestro 
-                      ? incidencias.filter(i => i.status === 'PENDING' && i.reportador === usuarioActivo?.name).length 
+                    {isMaestro
+                      ? incidencias.filter(i => i.status === 'PENDING' && i.reportador === usuarioActivo?.name).length
                       : incidencias.filter(i => i.status === 'PENDING').length
                     }
                   </div>
@@ -488,7 +487,7 @@ export default function SailAdminDashboard() {
               <div className="flex flex-col md:flex-row md:items-center justify-between px-6 py-4 border-b border-gray-200 gap-4">
                 <div>
                   <h2 className="text-lg font-bold text-gray-800 flex items-center">
-                    <Calendar className="w-5 h-5 mr-2 text-[#0b6e3f]" /> 
+                    <Calendar className="w-5 h-5 mr-2 text-[#0b6e3f]" />
                     Horario Visual - Laboratorios
                   </h2>
                   <p className="text-xs text-gray-500 mt-1">Disponibilidad para: <strong className="text-[#0b6e3f]">{diaFiltro}</strong></p>
@@ -496,14 +495,13 @@ export default function SailAdminDashboard() {
 
                 <div className="flex bg-gray-100 p-1 rounded-sm border border-gray-200 overflow-x-auto">
                   {mapaDias.map(d => (
-                    <button 
-                      key={d} 
+                    <button
+                      key={d}
                       onClick={() => setDiaFiltro(d)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-sm transition-colors whitespace-nowrap ${
-                        diaFiltro === d 
-                          ? 'bg-[#0b6e3f] text-white shadow-sm' 
+                      className={`px-3 py-1.5 text-xs font-bold rounded-sm transition-colors whitespace-nowrap ${diaFiltro === d
+                          ? 'bg-[#0b6e3f] text-white shadow-sm'
                           : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-                      }`}
+                        }`}
                     >
                       {d}
                     </button>
@@ -516,10 +514,10 @@ export default function SailAdminDashboard() {
                   <thead className="sticky top-0 bg-gray-100 border-b z-20 shadow-sm">
                     <tr>
                       <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase border-r w-24 text-center">Hora</th>
-                      
+
                       {laboratorios.map(lab => (
-                        <th 
-                          key={lab.id} 
+                        <th
+                          key={lab.id}
                           className="px-4 py-3 text-xs font-black text-gray-700 uppercase border-r text-center"
                         >
                           {lab.name}
@@ -533,11 +531,11 @@ export default function SailAdminDashboard() {
                         <td className="px-4 py-2 text-[9px] font-bold text-gray-600 bg-gray-50 border-r text-center">
                           {hora}
                         </td>
-                        
+
                         {laboratorios.map(lab => (
-                           <td key={lab.id} className="p-0 border-r">
-                             {renderizarCelda(hora, lab.name)}
-                           </td>
+                          <td key={lab.id} className="p-0 border-r">
+                            {renderizarCelda(hora, lab.name)}
+                          </td>
                         ))}
                       </tr>
                     ))}
@@ -561,19 +559,19 @@ export default function SailAdminDashboard() {
         )}
 
         {activeTab === 'Auxiliares' && (
-          <GestionUsuarios rolDestino="AUXILIAR" usuarioActivoId={usuarioActivo?.id}/>
+          <GestionUsuarios rolDestino="AUXILIAR" usuarioActivoId={usuarioActivo?.id} />
         )}
 
         {activeTab === 'Administradores' && (
-          <GestionUsuarios rolDestino="ADMIN" usuarioActivoId={usuarioActivo?.id}/>
+          <GestionUsuarios rolDestino="ADMIN" usuarioActivoId={usuarioActivo?.id} />
         )}
 
         {activeTab === 'Incidencias' && (
-          <GestionIncidencias 
-            incidencias={isMaestro ? incidencias.filter(i => i.reportador === usuarioActivo?.name) : incidencias} 
-            clases={clases} 
-            usuarioActivo={usuarioActivo} 
-            onIncidenciaActualizada={cargarDatosBD} 
+          <GestionIncidencias
+            incidencias={isMaestro ? incidencias.filter(i => i.reportador === usuarioActivo?.name) : incidencias}
+            clases={clases}
+            usuarioActivo={usuarioActivo}
+            onIncidenciaActualizada={cargarDatosBD}
           />
         )}
       </main>
@@ -586,29 +584,28 @@ export default function SailAdminDashboard() {
                 <h3 className="text-lg font-bold text-gray-800 flex items-center">
                   <Edit2 className="w-5 h-5 mr-2 text-blue-600" /> Gestionar Clase
                 </h3>
-                <button 
-                  onClick={cerrarModalEdicion} 
+                <button
+                  onClick={cerrarModalEdicion}
                   className="text-gray-400 hover:text-gray-700 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <div className="p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Nombre</label>
-                  <input 
-                    type="text" 
-                    value={editNombre} 
+                  <input
+                    type="text"
+                    value={editNombre}
                     onChange={(e) => {
                       setEditNombre(e.target.value);
                       if (erroresEdicion.nombre) setErroresEdicion({ ...erroresEdicion, nombre: undefined });
-                    }} 
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium outline-none transition-colors ${
-                      erroresEdicion.nombre 
-                        ? 'border-red-500 focus:ring-red-500 bg-red-50' 
+                    }}
+                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium outline-none transition-colors ${erroresEdicion.nombre
+                        ? 'border-red-500 focus:ring-red-500 bg-red-50'
                         : 'border-gray-300 focus:ring-blue-500'
-                    }`}
+                      }`}
                   />
                   {erroresEdicion.nombre && (
                     <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
@@ -620,8 +617,8 @@ export default function SailAdminDashboard() {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Estado de la Sesión</label>
-                  <select 
-                    value={editStatus} 
+                  <select
+                    value={editStatus}
                     onChange={(e) => setEditStatus(e.target.value)}
                     className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black"
                   >
@@ -633,15 +630,14 @@ export default function SailAdminDashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Laboratorio</label>
-                    <select 
-                      value={editLab} 
+                    <select
+                      value={editLab}
                       onChange={(e) => {
                         setEditLab(e.target.value);
                         if (erroresEdicion.lab) setErroresEdicion({ ...erroresEdicion, lab: undefined });
-                      }} 
-                      className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
-                        erroresEdicion.lab ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:ring-blue-500'
-                      }`}
+                      }}
+                      className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${erroresEdicion.lab ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:ring-blue-500'
+                        }`}
                     >
                       <option value="">Seleccionar...</option>
                       {laboratorios.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -653,12 +649,12 @@ export default function SailAdminDashboard() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Duración (horas)</label>
-                    <select 
-                      value={editDuracion} 
-                      onChange={(e) => setEditDuracion(parseInt(e.target.value))} 
+                    <select
+                      value={editDuracion}
+                      onChange={(e) => setEditDuracion(parseInt(e.target.value))}
                       className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium focus:ring-blue-500 outline-none transition-colors"
                     >
                       {[1, 2, 3, 4, 5, 6, 7, 8].map(h => (
@@ -670,24 +666,23 @@ export default function SailAdminDashboard() {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Bloque Horario</label>
-                  <select 
-                    value={editHorario} 
+                  <select
+                    value={editHorario}
                     onChange={(e) => {
                       setEditHorario(e.target.value);
                       if (erroresEdicion.horario) setErroresEdicion({ ...erroresEdicion, horario: undefined });
-                    }} 
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
-                      erroresEdicion.horario ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:ring-blue-500'
-                    }`}
+                    }}
+                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${erroresEdicion.horario ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                   >
                     <option value="">Seleccionar...</option>
                     {Array.from({ length: 24 - editDuracion + 1 }, (_, i) => `${i}:00- ${i + editDuracion}:00`).map(h => {
                       const disponible = esDisponibleEdicion(h, editDuracion);
                       return (
-                        <option 
-                          key={h} 
-                          value={h} 
-                          disabled={!disponible} 
+                        <option
+                          key={h}
+                          value={h}
+                          disabled={!disponible}
                           className={!disponible ? 'text-gray-400 bg-gray-100 font-bold' : 'text-black'}
                         >
                           {h} {!disponible ? '(Ocupado)' : ''}
@@ -704,69 +699,66 @@ export default function SailAdminDashboard() {
                 </div>
 
                 <div className="flex gap-3 mt-1 items-center">
-                {/* Paleta de colores */}
-                {PALETA_COLORES.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setEditColor(c.clase)} 
-                    className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${
-                      editColor === c.clase 
-                        ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md' 
-                        : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
-                    }`}
-                    title="Color predefinido"
-                  />
-                ))}
+                  {/* Paleta de colores */}
+                  {PALETA_COLORES.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setEditColor(c.clase)}
+                      className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${editColor === c.clase
+                          ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
+                          : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
+                        }`}
+                      title="Color predefinido"
+                    />
+                  ))}
 
-                {/* Selector personalizado (Botón Arcoíris) */}
-                <label 
-                  className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${
-                    editColor.startsWith('#') 
-                      ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md' 
-                      : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
-                  }`}
-                  style={
-                    editColor.startsWith('#') 
-                      ? { backgroundColor: editColor } // Si ya eligió uno, mostramos su color personalizado
-                      : { background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' } // Si no arcoíris
-                  }
-                  title="Elegir color personalizado"
-                >
-                  <input
-                    type="color"
-                    value={editColor.startsWith('#') ? editColor : '#0b6e3f'} 
-                    onChange={(e) => setEditColor(e.target.value)}
-                    className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-                  />
-                </label>
-              </div>
+                  {/* Selector personalizado (Botón Arcoíris) */}
+                  <label
+                    className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${editColor.startsWith('#')
+                        ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
+                        : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
+                      }`}
+                    style={
+                      editColor.startsWith('#')
+                        ? { backgroundColor: editColor } // Si ya eligió uno, mostramos su color personalizado
+                        : { background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' } // Si no arcoíris
+                    }
+                    title="Elegir color personalizado"
+                  >
+                    <input
+                      type="color"
+                      value={editColor.startsWith('#') ? editColor : '#0b6e3f'}
+                      onChange={(e) => setEditColor(e.target.value)}
+                      className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                    />
+                  </label>
+                </div>
 
               </div>
 
               <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">
-                <button 
-                  onClick={handleIntentarEliminar} 
+                <button
+                  onClick={handleIntentarEliminar}
                   disabled={guardandoEdicion}
                   className="flex items-center text-sm font-bold text-red-600 hover:text-red-800 px-3 py-2 rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
                 >
                   <Trash2 className="w-4 h-4 mr-2" /> Eliminar
                 </button>
-                
+
                 <div className="flex space-x-3">
-                  <button 
-                    onClick={cerrarModalEdicion} 
+                  <button
+                    onClick={cerrarModalEdicion}
                     disabled={guardandoEdicion}
                     className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
                   >
                     Cancelar
                   </button>
-                  <button 
-                    onClick={handleGuardarEdicion} 
+                  <button
+                    onClick={handleGuardarEdicion}
                     disabled={guardandoEdicion}
-                    className={`px-4 py-2 text-sm font-bold text-white rounded transition-colors shadow-sm flex items-center justify-center gap-2 ${
-                      guardandoEdicion ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
-                    }`}
+                    className={`px-4 py-2 text-sm font-bold text-white rounded transition-colors shadow-sm flex items-center justify-center gap-2 ${guardandoEdicion ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                      }`}
                   >
                     {guardandoEdicion ? (
                       <>
@@ -791,22 +783,22 @@ export default function SailAdminDashboard() {
                 <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <AlertTriangle className="w-8 h-8 text-red-600" />
                 </div>
-                
+
                 <h3 className="text-xl font-bold text-gray-800 mb-2">¿Eliminar clase?</h3>
-                
+
                 <p className="text-sm text-gray-600 mb-6">
                   Estás a punto de eliminar permanentemente la clase <span className="font-bold text-gray-800">"{claseSeleccionada.nombre}"</span>. Esta acción liberará el horario y no se puede deshacer.
                 </p>
-                
+
                 <div className="flex space-x-3 w-full">
-                  <button 
+                  <button
                     onClick={() => setMostrarConfirmacion(false)}
                     disabled={guardandoEdicion}
                     className="flex-1 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     onClick={confirmarEliminacion}
                     disabled={guardandoEdicion}
                     className="flex-1 px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded transition-colors shadow-sm flex justify-center items-center gap-2 disabled:opacity-50"
@@ -871,21 +863,25 @@ export default function SailAdminDashboard() {
         </div>
       )}
 
-      <Toaster 
-        position="top-right" 
-        richColors 
+      {formModalOpen && (
+          <FormularioClase
+            initialValues={formInitialValues}
+            onClaseCreada={handleCrearClase}
+            laboratorios={laboratorios}
+            clases={clases}
+            open={formModalOpen}
+            onClose={() => setFormModalOpen(false)}
+          />
+      )}
+
+      <Toaster
+        position="top-right"
+        richColors
         closeButton
         theme="light"
       />
       {/** Formulario modal invocado desde los espacios Disponibles */}
-      <FormularioClase
-        initialValues={formInitialValues}
-        onClaseCreada={handleCrearClase}
-        laboratorios={laboratorios}
-        clases={clases}
-        open={formModalOpen}
-        onClose={() => setFormModalOpen(false)}
-      />
+
     </div>
   );
 }

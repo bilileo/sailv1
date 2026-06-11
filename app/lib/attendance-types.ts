@@ -26,6 +26,5 @@ export interface NuevaClase {
   maestroId: string;
   dia: string;
   horario: string;
-  duracion: number;
-  color?: string;
+  duracion: number
 }

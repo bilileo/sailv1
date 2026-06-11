@@ -1,12 +1,13 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Plus, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, AlertCircle, CheckCircle, Edit2, X } from 'lucide-react';
 import { NuevaClase } from './lib/attendance-types';
 import { toast } from 'sonner';
 
 interface Laboratorio { id: number; name: string; }
 interface Maestro { id: string; name: string; }
 interface Clase { id: string; nombre: string; laboratorio: string; horario: string; dayOfWeek: number; }
+interface Asignaturas { id: number; name: string; materiaCode: string; color?: string; }
 
 interface FormularioClaseProps {
   onClaseCreada: (nuevaClase: NuevaClase) => void;
@@ -25,16 +26,6 @@ interface FormularioClaseProps {
   }>;
 }
 
-// Paleta de colores
-const PALETA_COLORES = [
-  { id: 'blue', clase: 'bg-blue-600', hover: 'hover:bg-blue-700' },
-  { id: 'emerald', clase: 'bg-emerald-600', hover: 'hover:bg-emerald-700' },
-  { id: 'purple', clase: 'bg-purple-600', hover: 'hover:bg-purple-700' },
-  { id: 'rose', clase: 'bg-rose-600', hover: 'hover:bg-rose-700' },
-  { id: 'orange', clase: 'bg-orange-600', hover: 'hover:bg-orange-700' },
-  { id: 'teal', clase: 'bg-teal-600', hover: 'hover:bg-teal-700' },
-];
-
 export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, clases, open, onClose }: FormularioClaseProps) => {
   const [nombre, setNombre] = useState('');
   const [lab, setLab] = useState(initialValues?.laboratorioId || '');
@@ -49,7 +40,9 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
     horario?: string;
   }>({});
   const [enviando, setEnviando] = useState(false);
-  const [colorFondo, setColorFondo] = useState(initialValues?.color || PALETA_COLORES[0].clase);
+
+  // Para encontrar asignaturas
+  const [asignaturas, setAsignaturas] = useState<Asignaturas[]>([]);
 
   // Cargar maestros
   useEffect(() => {
@@ -67,6 +60,21 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
     };
     cargarMaestros();
   }, []);
+
+
+  // Obtenemos las asignaturas disponibles para seleccionarlas en el formulario
+  const cargarAsignaturas = async () => {
+    try {
+      const timestamp = new Date().getTime();
+      const resAsignaturas = await fetch(`/api/catalogo?t=${timestamp}`, { cache: 'no-store' });
+      if (resAsignaturas.ok) setAsignaturas(await resAsignaturas.json());
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+
+  useEffect(() => { cargarAsignaturas(); }, []);
 
   // 1. Generamos opciones de horario basadas en la duración
   const generarOpcionesHorario = (duracionHoras: number) => {
@@ -102,6 +110,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
         return bloques;
       });
   }, [clases, labSeleccionado, dia]);
+
 
   // Función para verificar si un bloque está disponible (considerando la duración)
   const esDisponible = React.useCallback((bloqueStr: string): boolean => {
@@ -151,6 +160,8 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
     setErrores({});
     const nuevosErrores: typeof errores = {};
 
+    console.log('Validando clase con datos:', { nombre, lab, maestro, dia, horario, duracion });
+
     // Validaciones
     if (!nombre.trim()) {
       nuevosErrores.nombre = 'Por favor, ingresa el nombre de la asignatura';
@@ -185,8 +196,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       maestroId: maestro,
       dia,
       horario,
-      duracion,
-      color: colorFondo
+      duracion
     };
 
     onClaseCreada(datosClase);
@@ -201,42 +211,48 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
 
     // Limpiar formulario
     setNombre('');
-    setColorFondo(PALETA_COLORES[0].clase);
     setErrores({});
     setEnviando(false);
   };
 
   const card = (
-    <div className="max-w-md bg-white border border-gray-200 p-6 rounded-sm shadow-sm text-black">
-      <h2 className="text-xl font-bold mb-6 flex items-center text-[#0b6e3f]">
-        <Plus className="w-5 h-5 mr-2" /> Agendar Clase
-      </h2>
+    <div className="max-w bg-white border border-gray-200 p-6 rounded-sm shadow-sm text-black">
 
+      {/** Formulario de creación de clase */}
+
+      {/* Nombre de la Asignatura */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-bold text-gray-800 mb-1">Asignatura</label>
-          <input
-            type="text"
+          <select
             value={nombre}
             onChange={(e) => {
               setNombre(e.target.value);
               if (errores.nombre) setErrores({ ...errores, nombre: undefined });
             }}
-            className={`w-full border-2 rounded-sm px-3 py-2 text-sm outline-none focus:ring-2 text-black font-medium transition-colors ${errores.nombre
-                ? 'border-red-500 focus:ring-red-500 bg-red-50'
-                : 'border-gray-300 focus:ring-[#0b6e3f]'
+            className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.nombre
+              ? 'border-red-500 bg-red-50'
+              : 'border-gray-300'
               }`}
-            placeholder="Nombre de la clase"
-          />
+          >
+            <option value="">Seleccionar...</option>
+            {asignaturas.map((a) => (
+              <option key={a.id} value={a.name}>
+                {a.materiaCode + ' - ' + a.name}
+              </option>
+            ))}
+          </select>
           {errores.nombre && (
             <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-              <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
               <span>{errores.nombre}</span>
             </div>
           )}
         </div>
 
+        {/* Bloque de columnas para mejor visualización */}
         <div className="grid grid-cols-2 gap-4">
+          {/* Laboratorio donde se impartirá */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Laboratorio</label>
             <select
@@ -246,8 +262,8 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
                 if (errores.lab) setErrores({ ...errores, lab: undefined });
               }}
               className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.lab
-                  ? 'border-red-500 bg-red-50'
-                  : 'border-gray-300'
+                ? 'border-red-500 bg-red-50'
+                : 'border-gray-300'
                 }`}
             >
               <option value="">Seleccionar...</option>
@@ -257,11 +273,13 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
             </select>
             {errores.lab && (
               <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-                <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
                 <span>{errores.lab}</span>
               </div>
             )}
           </div>
+
+          {/* Maestro que impartirá la clase */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Maestro</label>
             <select
@@ -271,8 +289,8 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
                 if (errores.maestro) setErrores({ ...errores, maestro: undefined });
               }}
               className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.maestro
-                  ? 'border-red-500 bg-red-50'
-                  : 'border-gray-300'
+                ? 'border-red-500 bg-red-50'
+                : 'border-gray-300'
                 }`}
             >
               <option value="">Seleccionar...</option>
@@ -284,14 +302,16 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
             </select>
             {errores.maestro && (
               <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-                <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
                 <span>{errores.maestro}</span>
               </div>
             )}
           </div>
         </div>
 
+
         <div className="grid grid-cols-2 gap-4">
+          {/* Día de la semana */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Día</label>
             <select
@@ -304,6 +324,8 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
               ))}
             </select>
           </div>
+
+          {/* Duración en horas de la clase */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Duración (horas)</label>
             <select
@@ -318,6 +340,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
           </div>
         </div>
 
+        {/* De que hora a que hora será la clase */}
         <div>
           <label className="block text-sm font-bold text-gray-800 mb-1">Bloque Horario</label>
           <select
@@ -338,26 +361,28 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
           </select>
         </div>
 
+        {/* Antes aquí se seleccionaba el color, pero como ahora el color es parte de la asignatura
+            ps ya no tiene caso
         <div className="flex gap-3 mt-1 items-center">
-          {/* Paleta de colores */}
+          {// Paleta de colores }
           {PALETA_COLORES.map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => setColorFondo(c.clase)}
               className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${colorFondo === c.clase
-                  ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
-                  : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
+                ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
+                : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
                 }`}
               title="Color predefinido"
             />
           ))}
 
-          {/* Selector personalizado (Botón Arcoíris) */}
+          {// Selector personalizado (Botón Arcoíris)}
           <label
             className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${colorFondo.startsWith('#')
-                ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
-                : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
+              ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
+              : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
               }`}
             style={
               colorFondo.startsWith('#')
@@ -374,13 +399,14 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
             />
           </label>
         </div>
+        */}
 
         <button
           type="submit"
           disabled={enviando}
           className={`w-full text-white py-3 rounded-sm font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 ${enviando
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-[#0b6e3f] hover:bg-green-800'
+            ? 'bg-gray-400 cursor-not-allowed'
+            : 'bg-[#0b6e3f] hover:bg-green-800'
             }`}
         >
           {enviando ? (
@@ -399,13 +425,28 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
     </div>
   );
 
+  // Cargar asignaturas al abrir el formulario para asegurar datos frescos
+  useEffect(() => {
+    if (open) cargarAsignaturas();
+  }, [open]);
+
   if (open) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div className="w-full max-w-xl">
           <div className="bg-white rounded-md shadow-2xl overflow-hidden">
-            <div className="flex items-end justify-end px-4 py-3 border-b">
-              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">Cerrar</button>
+
+            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b">
+              <h3 className="text-lg font-bold text-[#0b6e3f] flex items-center">
+                <Plus className="w-5 h-5 mr-2 text-[#0b6e3f]" />
+                Agendar Nueva Clase
+              </h3>
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="p-4">{card}</div>
           </div>
