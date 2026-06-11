@@ -110,7 +110,7 @@ export function Alumnos() {
           id: esEdicion ? idSeleccionado : matricula,
           name: nombre,
           email: correo,
-          password: esEdicion ? '' : password
+          password
         })
       });
       const data = await res.json();
@@ -228,7 +228,7 @@ export function Alumnos() {
 
             <form onSubmit={handleSubmit}>
               <div className="p-6 space-y-4">
-                
+
                 { /* Validación Matricula */}
                 {!idSeleccionado && (
                   <div>
