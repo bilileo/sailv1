@@ -864,6 +864,7 @@ export default function SailAdminDashboard() {
       )}
 
       {formModalOpen && (
+          /** Formulario modal invocado desde los espacios Disponibles */
           <FormularioClase
             initialValues={formInitialValues}
             onClaseCreada={handleCrearClase}
@@ -880,7 +881,6 @@ export default function SailAdminDashboard() {
         closeButton
         theme="light"
       />
-      {/** Formulario modal invocado desde los espacios Disponibles */}
 
     </div>
   );
