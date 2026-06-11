@@ -8,12 +8,11 @@ interface StudentMinimal { id: string; name: string; email: string }
 export function Alumnos() {
   // Abrir un modal para agregar o editar alumnos
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [idSeleccionado, setIdSeleccionado] = useState<string | null>(null);
 
-  // Estados del formulario y validaciones
   const [alumnos, setAlumnos] = useState<StudentMinimal[]>([]);
   const [nombre, setNombre] = useState('');
   const [matricula, setMatricula] = useState('');
-  const [matriculaEdit, setMatriculaEdit] = useState('');
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,6 +22,8 @@ export function Alumnos() {
     correo?: string;
     password?: string;
   }>({});
+
+
 
   // Estados apra el modal de Eliminación
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
@@ -41,11 +42,11 @@ export function Alumnos() {
   useEffect(() => { cargar(); }, []);
 
   const abrirModal = (alumnos?: StudentMinimal) => {
-    setErrores({}); // Limpiamos errores previos
+    setErrores({});
     if (alumnos) {
-      setMatricula(alumnos.id); setNombre(alumnos.name); setCorreo(alumnos.email); setPassword('');
+      setIdSeleccionado(alumnos.id); setMatricula(alumnos.id); setNombre(alumnos.name); setCorreo(alumnos.email); setPassword('');
     } else {
-      setMatricula(''); setNombre(''); setCorreo(''); setPassword('');
+      setIdSeleccionado(null); setMatricula(''); setNombre(''); setCorreo(''); setPassword('');
     }
     setModalAbierto(true);
   };
@@ -78,7 +79,7 @@ export function Alumnos() {
     }
 
     // La contraseña es obligatoria si es nuevo usuario. Si está editando, es opcional.
-    if (!matriculaEdit && !password.trim()) {
+    if (idSeleccionado === null && !password.trim()) {
       nuevosErrores.password = 'La contraseña es obligatoria para nuevos usuarios';
     } else if (password && password.length < 6) {
       nuevosErrores.password = 'La contraseña debe tener al menos 6 caracteres';
@@ -97,19 +98,25 @@ export function Alumnos() {
 
     // Si se presionó el botón de editar, el método será PUT, si no, POST
 
-    const method = matriculaEdit ? 'PUT' : matricula ? 'POST' : 'PUT';
+    const esEdicion = idSeleccionado !== null;
+
+    const method = esEdicion ? 'PUT' : 'POST';
 
     try {
-      // Obtener datos del formulario y enviarlos al backend
       const res = await fetch('/api/estudiante', {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: matriculaEdit || matricula, name: nombre, email: correo, password })
+        body: JSON.stringify({
+          id: esEdicion ? idSeleccionado : matricula,
+          name: nombre,
+          email: correo,
+          password: esEdicion ? '' : password
+        })
       });
       const data = await res.json();
 
       if (res.ok) {
-        toast.success(matriculaEdit ? 'Alumno actualizado correctamente' : matricula ? 'Alumno registrado correctamente' : 'Alumno actualizado correctamente');
+        toast.success(esEdicion ? 'Alumno actualizado correctamente' : 'Alumno registrado correctamente');
         cerrarModal();
         cargar();
       } else {
@@ -152,8 +159,6 @@ export function Alumnos() {
 
   return (
     <div className="space-y-6">
-
-
       <div className="bg-white p-6 border rounded shadow-sm">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold mb-6 flex items-center text-[#0b6e3f]">Listado de Alumnos</h3>
@@ -211,7 +216,7 @@ export function Alumnos() {
             <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b">
               <h3 className="text-lg font-bold text-gray-800 flex items-center">
                 <Edit2 className="w-5 h-5 mr-2 text-[#0b6e3f]" />
-                {matriculaEdit ? `Editar ${nombre}` : 'Nuevo alumno'}
+                {idSeleccionado ? `Editar ${nombre}` : 'Nuevo alumno'}
               </h3>
               <button
                 onClick={cerrarModal}
@@ -223,37 +228,38 @@ export function Alumnos() {
 
             <form onSubmit={handleSubmit}>
               <div className="p-6 space-y-4">
-                { /* Validación Matricula */ }
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Matrícula</label>
-                  <input
-                    placeholder="Matrícula"
-                    type="text" 
-                    value={matricula} 
-                    onChange={e => {
-                      setMatricula(e.target.value);
-                      if (errores.matricula) setErrores({ ...errores, matricula: undefined });
-                    }} 
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${
-                      errores.matricula ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
-                    }`} 
-                  />
-                </div>
+                
+                { /* Validación Matricula */}
+                {!idSeleccionado && (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Matrícula</label>
+                    <input
+                      placeholder="Matrícula"
+                      type="text"
+                      value={matricula}
+                      onChange={e => {
+                        setMatricula(e.target.value);
+                        if (errores.matricula) setErrores({ ...errores, matricula: undefined });
+                      }}
+                      className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${errores.matricula ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
+                        }`}
+                    />
+                  </div>)
+                }
 
                 {/* Validación Nombre */}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Nombre Completo</label>
                   <input
                     placeholder="Nombre"
-                    type="text" 
-                    value={nombre} 
+                    type="text"
+                    value={nombre}
                     onChange={e => {
                       setNombre(e.target.value);
                       if (errores.nombre) setErrores({ ...errores, nombre: undefined });
-                    }} 
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${
-                      errores.nombre ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
-                    }`} 
+                    }}
+                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${errores.nombre ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
+                      }`}
                   />
                 </div>
 
@@ -262,15 +268,14 @@ export function Alumnos() {
                   <label className="block text-sm font-bold text-gray-700 mb-1">Correo</label>
                   <input
                     placeholder="Correo"
-                    type="text" 
-                    value={correo} 
+                    type="text"
+                    value={correo}
                     onChange={e => {
                       setCorreo(e.target.value);
                       if (errores.correo) setErrores({ ...errores, correo: undefined });
-                    }} 
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${
-                      errores.correo ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
-                    }`} 
+                    }}
+                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${errores.correo ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
+                      }`}
                   />
                   {errores.correo && (
                     <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
@@ -283,19 +288,18 @@ export function Alumnos() {
                 {/* Validación Contraseña */}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
-                    Contraseña {matriculaEdit && <span className="text-gray-400 font-normal text-xs">(Opcional, dejar en blanco para no cambiar)</span>}
+                    Contraseña {idSeleccionado && <span className="text-gray-400 font-normal text-xs">(Opcional, dejar en blanco para no cambiar)</span>}
                   </label>
                   <input
                     placeholder="Contraseña"
-                    type="password" 
-                    value={password} 
+                    type="password"
+                    value={password}
                     onChange={e => {
                       setPassword(e.target.value);
                       if (errores.password) setErrores({ ...errores, password: undefined });
-                    }} 
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${
-                      errores.password ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
-                    }`} 
+                    }}
+                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${errores.password ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
+                      }`}
                   />
                   {errores.password && (
                     <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
