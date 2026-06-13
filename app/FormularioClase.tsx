@@ -74,8 +74,6 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
   };
 
 
-  useEffect(() => { cargarAsignaturas(); }, []);
-
   // 1. Generamos opciones de horario basadas en la duración
   const generarOpcionesHorario = (duracionHoras: number) => {
     const maxInicio = 24 - duracionHoras;
