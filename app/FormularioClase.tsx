@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Plus, AlertCircle, CheckCircle, Edit2, X } from 'lucide-react';
+import { Plus, AlertCircle, CheckCircle, X } from 'lucide-react';
 import { NuevaClase } from './lib/attendance-types';
 import { toast } from 'sonner';
 

@@ -10,7 +10,7 @@ export async function GET() {
       .select('id, name')
       .eq('role', 'MAESTRO')
       .order('name');
-      
+
     if (error) throw error;
     return NextResponse.json(data);
   } catch (error) {

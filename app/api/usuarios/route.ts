@@ -12,14 +12,14 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role');
-    
+
     // Construimos la consulta
     let query = supabase.from('User').select('id, name, email, role');
-    
+
     if (role) {
       query = query.eq('role', role);
     }
-      
+
     const { data, error } = await query;
     if (error) throw error;
 
@@ -38,11 +38,11 @@ export async function POST(request: Request) {
     const { error } = await supabase
       .from('User')
       .insert([
-        { 
+        {
           // Eliminamos la línea donde se mandaba el "id"
-          name: data.name, 
-          email: data.email, 
-          role: data.role, 
+          name: data.name,
+          email: data.email,
+          role: data.role,
           password: hash // Asegúrate de usar 'password' como dice tu esquema SQL, no 'passwordHash'
         }
       ]);
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     if (error) {
       // 23505 es el código de PostgreSQL para una violación de clave única (Unique Violation)
       if (error.code === '23505') {
-         return NextResponse.json({ error: 'El correo ya está registrado' }, { status: 400 });
+        return NextResponse.json({ error: 'El correo ya está registrado' }, { status: 400 });
       }
       throw error;
     }
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const data = await request.json();
-    
+
     const updatePayload: Record<string, unknown> = {
       name: data.name,
       email: data.email
@@ -95,14 +95,14 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    
+
     if (!id) throw new Error('ID no proporcionado');
 
     const { error } = await supabase
       .from('User')
       .delete()
       .eq('id', id);
-      
+
     if (error) {
       // 23503 es el código de PostgreSQL para una violación de llave foránea (Foreign Key Violation)
       if (error.code === '23503') {

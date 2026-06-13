@@ -53,7 +53,7 @@ export default function SailAdminDashboard() {
   const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
   const [formModalOpen, setFormModalOpen] = useState(false);
   interface FormInitialValues { horario?: string; dia?: string; laboratorioId?: string }
-  const [formInitialValues, setFormInitialValues] = useState<FormInitialValues | null>(null);
+  const [formInitialValues, setFormInitialValues] = useState<FormInitialValues>();
 
   const [diaFiltro, setDiaFiltro] = useState(() => {
     const hoy = new Date();
@@ -329,7 +329,7 @@ export default function SailAdminDashboard() {
       <button
         onClick={() => handleAbrirAcciones(encontrada)}
         style={esHex && !esMantenimiento && !esFinalizada ? { backgroundColor: colorClase } : {}}
-        className={`w-full h-full min-h-[64px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-all focus:outline-none 
+        className={`w-full h-full min-h-[64px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-all focus:outline-none
           ${esMantenimiento
             ? 'bg-gray-500 border-gray-600'
             : esFinalizada
@@ -337,7 +337,7 @@ export default function SailAdminDashboard() {
               : esProgramada
                 ? `${!esHex ? colorClase : ''} opacity-80 border-black/10` // Si es tailwind, pone la clase
                 : `${!esHex ? colorClase : ''} border-black/10`
-          } 
+          }
           ${esMantenimiento
             ? 'hover:bg-gray-600 cursor-pointer'
             : esFinalizada
@@ -398,8 +398,8 @@ export default function SailAdminDashboard() {
                 key={t}
                 onClick={() => setActiveTab(t)}
                 className={`text-sm font-bold transition-colors ${activeTab === t
-                    ? 'text-black border-b-2 border-black'
-                    : 'text-gray-500 hover:text-gray-700'
+                  ? 'text-black border-b-2 border-black'
+                  : 'text-gray-500 hover:text-gray-700'
                   }`}
               >
                 {t}
@@ -499,8 +499,8 @@ export default function SailAdminDashboard() {
                       key={d}
                       onClick={() => setDiaFiltro(d)}
                       className={`px-3 py-1.5 text-xs font-bold rounded-sm transition-colors whitespace-nowrap ${diaFiltro === d
-                          ? 'bg-[#0b6e3f] text-white shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                        ? 'bg-[#0b6e3f] text-white shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
                         }`}
                     >
                       {d}
@@ -603,8 +603,8 @@ export default function SailAdminDashboard() {
                       if (erroresEdicion.nombre) setErroresEdicion({ ...erroresEdicion, nombre: undefined });
                     }}
                     className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium outline-none transition-colors ${erroresEdicion.nombre
-                        ? 'border-red-500 focus:ring-red-500 bg-red-50'
-                        : 'border-gray-300 focus:ring-blue-500'
+                      ? 'border-red-500 focus:ring-red-500 bg-red-50'
+                      : 'border-gray-300 focus:ring-blue-500'
                       }`}
                   />
                   {erroresEdicion.nombre && (
@@ -706,8 +706,8 @@ export default function SailAdminDashboard() {
                       type="button"
                       onClick={() => setEditColor(c.clase)}
                       className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${editColor === c.clase
-                          ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
-                          : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
+                        ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
+                        : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
                         }`}
                       title="Color predefinido"
                     />
@@ -716,8 +716,8 @@ export default function SailAdminDashboard() {
                   {/* Selector personalizado (Botón Arcoíris) */}
                   <label
                     className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${editColor.startsWith('#')
-                        ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
-                        : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
+                      ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
+                      : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
                       }`}
                     style={
                       editColor.startsWith('#')
@@ -864,15 +864,15 @@ export default function SailAdminDashboard() {
       )}
 
       {formModalOpen && (
-          /** Formulario modal invocado desde los espacios Disponibles */
-          <FormularioClase
-            initialValues={formInitialValues}
-            onClaseCreada={handleCrearClase}
-            laboratorios={laboratorios}
-            clases={clases}
-            open={formModalOpen}
-            onClose={() => setFormModalOpen(false)}
-          />
+        /** Formulario modal invocado desde los espacios Disponibles */
+        <FormularioClase
+          initialValues={formInitialValues}
+          onClaseCreada={handleCrearClase}
+          laboratorios={laboratorios}
+          clases={clases}
+          open={formModalOpen}
+          onClose={() => setFormModalOpen(false)}
+        />
       )}
 
       <Toaster

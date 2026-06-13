@@ -72,18 +72,18 @@ const resolveAsignaturaId = async (name: string, color?: string | null) => {
 export async function GET(request: Request) {
   try {
     // `getToken` requires a typed request.
-    const token = (await getToken({ 
+    const token = (await getToken({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      req: request as any, 
+      req: request as any,
       secret: process.env.NEXTAUTH_SECRET || "SAIL_Super_Secreto_Servicio_Social_2026!"
     })) as { role?: string, id?: string } | null;
-    
+
     if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
     let query = supabase
       .from('ClassSession')
       .select('id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, asignaturaId, Laboratory(id, name), Asignatura(id, name, color)')
-      .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE']); 
+      .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE']);
 
     if (token.role === 'MAESTRO') {
       query = query.eq('teacherId', token.id);
@@ -103,7 +103,7 @@ export async function GET(request: Request) {
 
       return {
         id: row['id'],
-        maestroId: row['teacherId'], 
+        maestroId: row['teacherId'],
         status: row['status'],
         nombre: asignatura?.['name'] || 'Sin Asignar',
         laboratorio: laboratory ? laboratory['name'] : 'Sin Asignar',
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
         horario: `${sHour}:00 - ${eHour}:00`,
         color: asignatura?.['color'] || '#3B82F6'
       };
-    }).filter(Boolean); 
+    }).filter(Boolean);
 
     return NextResponse.json(formattedData);
   } catch (error: unknown) {
@@ -129,14 +129,14 @@ export async function POST(request: Request) {
     if (!body?.nombre || !body?.laboratorioId || !body?.maestroId) {
       return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 });
     }
-    
+
     const dayOfWeek = mapaDiasPostgres[body.dia] || 1;
 
     const horaIStr = body.horario.split('-')[0].trim();
     const horaIParsed = parseInt(horaIStr.split(':')[0]);
     const duracion = body.duracion || 1;
     const horaF = horaIParsed + duracion;
-    
+
     const startTime = `${horaIParsed.toString().padStart(2, '0')}:00:00`;
     const endTime = `${horaF.toString().padStart(2, '0')}:00:00`;
 
@@ -149,12 +149,12 @@ export async function POST(request: Request) {
     const { error } = await supabase
       .from('ClassSession')
       .insert([{
-        laboratoryId: parseInt(body.laboratorioId, 10), 
-        teacherId: body.maestroId,                  
+        laboratoryId: parseInt(body.laboratorioId, 10),
+        teacherId: body.maestroId,
         asignaturaId,
-        dayOfWeek: dayOfWeek,                       
-        startTime: startTime,                       
-        endTime: endTime,                           
+        dayOfWeek: dayOfWeek,
+        startTime: startTime,
+        endTime: endTime,
         status: 'ACTIVE'
       }]);
 
@@ -163,12 +163,12 @@ export async function POST(request: Request) {
         .from('Imparte')
         .upsert([{ userId: body.maestroId, asignaturaId }], { onConflict: 'userId,asignaturaId' });
     }
-      
+
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: unknown) { 
+  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 }); 
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -185,14 +185,14 @@ export async function PUT(request: Request) {
       if (error) throw error;
       return NextResponse.json({ success: true });
     }
-    
+
     const dayOfWeek = mapaDiasPostgres[body.dia] || 1;
 
     const horaIStr = body.horario.split('-')[0].trim();
     const horaIParsed = parseInt(horaIStr.split(':')[0]);
     const duracion = body.duracion || 1;
     const horaF = horaIParsed + duracion;
-    
+
     const startTime = `${horaIParsed.toString().padStart(2, '0')}:00:00`;
     const endTime = `${horaF.toString().padStart(2, '0')}:00:00`;
 
@@ -228,13 +228,13 @@ export async function PUT(request: Request) {
         status: body.status || 'ACTIVE'
       })
       .eq('id', body.id);
-      
+
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: unknown) { 
+  } catch (error: unknown) {
     console.error("Error en PUT:", error);
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 }); 
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -247,7 +247,7 @@ export async function DELETE(request: Request) {
 
     await supabase.from('Attendance').delete().eq('classSessionId', id);
     await supabase.from('Incident').delete().eq('classSessionId', id);
-    
+
     const { error } = await supabase.from('ClassSession').delete().eq('id', id);
     if (error) throw error;
 

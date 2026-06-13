@@ -25,37 +25,37 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-      const data = await request.json();
-  
-      const { error } = await supabase
-        .from('Asignatura')
-        .insert([
-          { 
-            name: data.name, 
-            materiaCode: data.materiaCode,
-            color: data.color || 'bg-blue-600'
-          }
-        ]);
-  
-      if (error) {
-        // 23505 es el código de PostgreSQL para una violación de clave única (Unique Violation)
-        if (error.code === '23505') {
-           return NextResponse.json({ error: 'La clave de asignatura ya está registrada' }, { status: 400 });
+    const data = await request.json();
+
+    const { error } = await supabase
+      .from('Asignatura')
+      .insert([
+        {
+          name: data.name,
+          materiaCode: data.materiaCode,
+          color: data.color || 'bg-blue-600'
         }
-        throw error;
+      ]);
+
+    if (error) {
+      // 23505 es el código de PostgreSQL para una violación de clave única (Unique Violation)
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'La clave de asignatura ya está registrada' }, { status: 400 });
       }
-  
-      return NextResponse.json({ success: true });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      return NextResponse.json({ error: message }, { status: 500 });
+      throw error;
     }
+
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function PUT(request: Request) {
   try {
     const data = await request.json();
-    
+
     const updatePayload: Record<string, unknown> = {
       name: data.name,
       materiaCode: data.materiaCode,

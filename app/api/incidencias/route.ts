@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const data = await request.json();
-    
+
     let updatePayload: Record<string, unknown> = {};
     if (data.status) {
       updatePayload = { status: data.status };
@@ -99,11 +99,11 @@ export async function PUT(request: Request) {
         laboratoryId = classSession?.laboratoryId || null;
       }
 
-      updatePayload = { 
-        classSessionId: data.classSessionId, 
+      updatePayload = {
+        classSessionId: data.classSessionId,
         laboratoryId,
         title: data.title || 'Incidencia Actualizada',
-        description: data.message 
+        description: data.message
       };
     }
 
