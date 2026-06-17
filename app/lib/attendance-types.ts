@@ -11,6 +11,7 @@ export interface CatalogoClase {
   name: string;
   materiaCode: string;
   color?: string;
+  grupo: string;
 }
 
 export interface Alumno {
@@ -27,4 +28,5 @@ export interface NuevaClase {
   dia: string;
   horario: string;
   duracion: number
+  grupo: string;
 }

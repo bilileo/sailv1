@@ -12,7 +12,7 @@ export async function GET() {
       .select(`
         id, title, description, status, "createdAt", "classSessionId", "reportedById", "laboratoryId",
         ClassSession ( Asignatura ( name ), Laboratory ( name ) ),
-        Laboratory ( name ),
+        Laboratory ( name ), respuesta, "resolvedBy",
         User ( name )
       `)
       .order('status', { ascending: false })
@@ -30,6 +30,8 @@ export async function GET() {
         createdAt: row['createdAt'],
         classSessionId: row['classSessionId'],
         reportedById: row['reportedById'],
+        respuesta: row['respuesta'] || '',
+        resolvedBy: row['resolvedBy'] || '',
         clase: ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Asignatura'] as Record<string, unknown> | undefined)?.['name'],
         laboratorio: (row['Laboratory'] as Record<string, unknown> | undefined)?.['name'] || ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Laboratory'] as Record<string, unknown> | undefined)?.['name'],
         reportador: (row['User'] as Record<string, unknown> | undefined)?.['name']
@@ -86,6 +88,14 @@ export async function PUT(request: Request) {
       updatePayload = { status: data.status };
       if (data.status === 'RESOLVED') {
         updatePayload.resolvedAt = new Date().toISOString();
+        
+        if (data.respuesta !== undefined) {
+          updatePayload.respuesta = data.respuesta;
+        }
+
+        if (data.resolvedBy !== undefined) {
+          updatePayload.resolvedBy = data.resolvedBy;
+        }
       }
     } else {
       let laboratoryId = data.laboratoryId || null;

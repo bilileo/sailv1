@@ -9,13 +9,14 @@ export function GestionIncidencias({
   usuarioActivo,
   onIncidenciaActualizada
 }: {
-  incidencias: Array<{ id: string; status?: string; message?: string; laboratorio?: string; clase?: string; reportador?: string; classSessionId?: string; reportedById?: string }>,
-  clases: Array<{ id: string; laboratorio?: string; nombre?: string; maestroId?: string }>,
-  usuarioActivo: { id?: string; role?: string } | null,
-  onIncidenciaActualizada: () => void
+  incidencias: Array<{ id: string; status?: string; message?: string; laboratorio?: string; clase?: string; reportador?: string; classSessionId?: string; reportedById?: string; respuesta?: string; resolvedBy?: string }>;
+  clases: Array<{ id: string; laboratorio?: string; nombre?: string; maestroId?: string }>;
+  usuarioActivo: { id?: string; role?: string; name?: string } | null;
+  onIncidenciaActualizada: () => void;
 }) {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [cargando, setCargando] = useState(false);
+
 
   // Formulario (Sirve para Crear y Editar)
   const [editId, setEditId] = useState<string | null>(null);
@@ -27,6 +28,7 @@ export function GestionIncidencias({
   const [incidenciaAResolver, setIncidenciaAResolver] = useState<string | null>(null);
   const [incidenciaAEliminar, setIncidenciaAEliminar] = useState<{ id?: string } | null>(null);
   const [procesandoAccion, setProcesandoAccion] = useState(false);
+  const [respuestaAdmin, setRespuestaAdmin] = useState('');
 
   const abrirModalFormulario = (inc?: { id?: string; classSessionId?: string; message?: string }) => {
     setError('');
@@ -82,12 +84,18 @@ export function GestionIncidencias({
       const res = await fetch('/api/incidencias', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: incidenciaAResolver, status: 'RESOLVED' })
+        body: JSON.stringify({ 
+          id: incidenciaAResolver, 
+          status: 'RESOLVED',
+          respuesta: respuestaAdmin,
+          resolvedBy: usuarioActivo?.name || 'Administrador'
+        })
       });
 
       if (res.ok) {
         toast.success('Incidencia resuelta');
         setIncidenciaAResolver(null);
+        setRespuestaAdmin(''); 
         onIncidenciaActualizada();
       }
     } finally {
@@ -128,19 +136,35 @@ export function GestionIncidencias({
 
       <div className="space-y-4">
         {incidencias.map(inc => (
-          <div key={inc.id} className={`p-4 border-l-4 rounded-r-md border-y border-r shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-4 ${inc.status === 'PENDING' ? 'border-l-yellow-500 bg-yellow-50/30' : 'border-l-green-500 bg-gray-50'}`}>
+          <div key={inc.id} className={`p-4 border-l-4 rounded-r-md border-y border-r shadow-sm flex flex-col md:flex-row justify-between md:items-start gap-4 ${inc.status === 'PENDING' ? 'border-l-yellow-500 bg-yellow-50/30' : 'border-l-green-500 bg-gray-50'}`}>
             <div className="flex-1">
-              <div className="flex items-center space-x-2 mb-1">
+              <div className="flex items-center space-x-2 mb-3">
                 <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${inc.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
                   {inc.status === 'PENDING' ? 'Pendiente' : 'Resuelta'}
                 </span>
                 <span className="text-xs text-gray-500 font-bold">{inc.laboratorio} - {inc.clase}</span>
               </div>
-              <p className="text-sm font-medium text-gray-800 mt-2">{inc.message}</p>
-              <p className="text-xs text-gray-500 mt-2">Reportado por: {inc.reportador}</p>
+
+              {/* 1. DESCRIPCIÓN ORIGINAL DEL MAESTRO */}
+              <div className="mb-3">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Descripción del problema</span>
+                <p className="text-sm font-medium text-gray-800 mt-0.5">{inc.message}</p>
+              </div>
+
+              {/* 2. RESPUESTA DEL ADMINISTRADOR/AUXILIAR */}
+              {inc.status === 'RESOLVED' && inc.respuesta && (
+                <div className="mt-3 bg-green-100/50 border border-green-200 p-3 rounded-sm text-sm text-green-900">
+                  <span className="font-bold flex items-center gap-1 text-green-700">
+                    Respuesta {inc.resolvedBy ? `de ${inc.resolvedBy}` : ''}:
+                  </span>
+                  <p className="mt-1 font-medium">{inc.respuesta}</p>
+                </div>
+              )}
+
+              <p className="text-xs text-gray-500 mt-4">Reportado por: {inc.reportador}</p>
             </div>
 
-            <div className="flex items-center space-x-2 border-t md:border-t-0 pt-3 md:pt-0">
+            <div className="flex items-center space-x-2 border-t md:border-t-0 pt-3 md:pt-0 mt-auto md:mt-0">
               {/* Bloqueo por status: Si está resuelta, SOLO el ADMIN la puede editar/borrar. Si está pendiente, Admin/Auxiliar o el Creador. */}
               {((inc.status === 'RESOLVED' && usuarioActivo?.role === 'ADMIN') ||
                 (inc.status === 'PENDING' && (usuarioActivo?.role !== 'MAESTRO' || inc.reportedById === usuarioActivo?.id))) && (
@@ -245,9 +269,30 @@ export function GestionIncidencias({
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">¿Resolver incidencia?</h3>
-            <p className="text-sm text-gray-600 mb-6">Estás a punto de marcar esta falla como <span className="font-bold text-green-600">RESUELTA</span>.</p>
+            <p className="text-sm text-gray-600 mb-4">Estás a punto de marcar esta falla como <span className="font-bold text-green-600">RESUELTA</span>.</p>
+            
+            <div className="text-left mb-6">
+              <label className="block text-xs font-bold text-gray-700 mb-1">Mensaje de respuesta (Opcional):</label>
+              <textarea
+                value={respuestaAdmin}
+                onChange={(e) => setRespuestaAdmin(e.target.value)}
+                placeholder="Ej. El proyector ya fue reemplazado..."
+                className="w-full border-2 border-gray-200 rounded-sm px-3 py-2 text-sm text-black outline-none focus:border-green-600 resize-none transition-colors"
+                rows={3}
+              />
+            </div>
+
             <div className="flex space-x-3 w-full">
-              <button onClick={() => setIncidenciaAResolver(null)} disabled={procesandoAccion} className="flex-1 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded">Cancelar</button>
+              <button 
+                onClick={() => {
+                  setIncidenciaAResolver(null);
+                  setRespuestaAdmin(''); 
+                }} 
+                disabled={procesandoAccion} 
+                className="flex-1 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded"
+              >
+                Cancelar
+              </button>
               <button onClick={confirmarResolucion} disabled={procesandoAccion} className="flex-1 px-4 py-2 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded flex justify-center items-center gap-2">
                 {procesandoAccion ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle className="w-4 h-4" />}
                 {procesandoAccion ? 'Guardando...' : 'Sí, resolver'}

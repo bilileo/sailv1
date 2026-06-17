@@ -13,7 +13,7 @@ import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
 // 1. Actualizamos la interfaz para usar dayOfWeek
-interface Clase { id: string; nombre: string; laboratorio: string; horario: string; status?: string; dayOfWeek: number; color?: string; }
+interface Clase { id: string; nombre: string; laboratorio: string; horario: string; status?: string; dayOfWeek: number; color?: string; grupo?: string;}
 interface Laboratorio { id: number; name: string; }
 
 const HORAS_24 = Array.from({ length: 24 }, (_, i) => `${i}:00- ${i + 1}:00`);
@@ -36,6 +36,7 @@ const getNombreDia = (dayOfWeek?: number) => {
 export default function SailAdminDashboard() {
   const router = useRouter();
   const [usuarioActivo, setUsuarioActivo] = useState<{ id: string, name: string, role: string } | null>(null);
+  const [editGrupo, setEditGrupo] = useState('');
 
   interface UserSession { id: string; name: string; role: string }
 
@@ -65,7 +66,7 @@ export default function SailAdminDashboard() {
   const [editNombre, setEditNombre] = useState('');
   const [editLab, setEditLab] = useState('');
   const [editHorario, setEditHorario] = useState('');
-  const [erroresEdicion, setErroresEdicion] = useState<{ nombre?: string; lab?: string; horario?: string }>({});
+  const [erroresEdicion, setErroresEdicion] = useState<{ nombre?: string; lab?: string; horario?: string; grupo?: string }>({});
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [editDuracion, setEditDuracion] = useState(1);
@@ -78,10 +79,14 @@ export default function SailAdminDashboard() {
     clase?: string;
     classSessionId?: string;
     reportedById?: string;
+    respuesta?: string;
   }
   const [incidencias, setIncidencias] = useState<IncidenciaMinimal[]>([]);
   const [editStatus, setEditStatus] = useState('ACTIVE');
   const [editColor, setEditColor] = useState('bg-blue-600');
+  const [resueltasVistas, setResueltasVistas] = useState(0);
+  const misResueltasTotal = isMaestro ? incidencias.filter(i => i.status === 'RESOLVED' && i.reportedById === usuarioActivo?.id).length : 0;
+  const notificacionesMaestro = Math.max(0, misResueltasTotal - resueltasVistas);
 
   const labNombreEdicion = laboratorios.find(l => l.id.toString() === editLab)?.name;
 
@@ -162,6 +167,7 @@ export default function SailAdminDashboard() {
     setEditHorario(clase.horario);
     setEditStatus(clase.status || 'ACTIVE');
     setEditColor(clase.color || 'bg-blue-600');
+    setEditGrupo(clase.grupo || '');
 
     const hI = parseInt(clase.horario.split('-')[0]);
     const hF = parseInt(clase.horario.split('-')[1]);
@@ -223,7 +229,7 @@ export default function SailAdminDashboard() {
     if (!claseSeleccionada) return;
 
     setErroresEdicion({});
-    const nuevosErrores: { nombre?: string; lab?: string; horario?: string } = {};
+    const nuevosErrores: { nombre?: string; lab?: string; horario?: string; grupo?: string} = {};
 
     if (!editNombre.trim()) {
       nuevosErrores.nombre = 'El nombre es obligatorio';
@@ -237,6 +243,10 @@ export default function SailAdminDashboard() {
 
     if (!editHorario) {
       nuevosErrores.horario = 'Selecciona un horario válido';
+    }
+
+    if (!editGrupo.trim()) {
+      nuevosErrores.grupo = 'El grupo es obligatorio';
     }
 
     if (Object.keys(nuevosErrores).length > 0) {
@@ -260,7 +270,8 @@ export default function SailAdminDashboard() {
           // 3. Usamos getNombreDia para el payload de edición
           dia: getNombreDia(claseSeleccionada!.dayOfWeek),
           status: editStatus,
-          color: editColor
+          color: editColor,
+          grupo: editGrupo
         })
       });
 
@@ -305,12 +316,22 @@ export default function SailAdminDashboard() {
     });
 
     if (!encontrada) {
-      return (
-        <button onClick={() => handleAbrirFormModal(hora, nombreLab)} className="w-full h-full min-h-16 bg-green-700 text-white/60 flex flex-col items-center justify-center p-2 text-xs border-b border-green-800/50 hover:brightness-110">
-          Disponible <span className="text-[10px]">(Haga click para agendar)</span>
-        </button>
-      );
-    }
+        if (isMaestro) {
+          return (
+            <div className="w-full h-full min-h-[64px] bg-green-700 border-b border-green-800/50 flex flex-col items-center justify-center p-2 select-none">
+              <span className="text-[10px] font-medium text-white/50 text-center uppercase tracking-wider">
+                Sin clase asignada
+              </span>
+            </div>
+          );
+        }
+
+        return (
+          <button onClick={() => handleAbrirFormModal(hora, nombreLab)} className="w-full h-full min-h-[64px] bg-green-700 text-white/60 flex flex-col items-center justify-center p-2 text-xs border-b border-green-800/50 hover:brightness-110">
+            Disponible <span className="text-[10px]">(Haga click para agendar)</span>
+          </button>
+        );
+      }
 
     const esMantenimiento = encontrada.status === 'MAINTENANCE';
     const esFinalizada = encontrada.status === 'ENDED';
@@ -354,17 +375,23 @@ export default function SailAdminDashboard() {
           </>
         ) : esFinalizada ? (
           <>
-            <span className="text-xs font-bold leading-tight text-center">{encontrada.nombre}</span>
+            <span className="text-xs font-bold leading-tight text-center">
+              {encontrada.nombre} {encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
+            </span>
             <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Finalizada</span>
           </>
         ) : esProgramada ? (
           <>
-            <span className="text-xs font-bold leading-tight text-center">{encontrada.nombre}</span>
+            <span className="text-xs font-bold leading-tight text-center">
+              {encontrada.nombre} {encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
+            </span>
             <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Programada</span>
           </>
         ) : (
           <>
-            <span className="text-xs font-bold leading-tight text-center">{encontrada.nombre}</span>
+            <span className="text-xs font-bold leading-tight text-center">
+              {encontrada.nombre} {encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
+            </span>
             {esEnCurso && (
               <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">En curso</span>
             )}
@@ -393,16 +420,35 @@ export default function SailAdminDashboard() {
 
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
 
+            const notificaciones = t === 'Incidencias'
+              ? (isMaestro
+                ? notificacionesMaestro // <--- Usamos la nueva variable matemática
+                : incidencias.filter(i => i.status === 'PENDING').length)
+              : 0;
+
             return (
               <button
                 key={t}
-                onClick={() => setActiveTab(t)}
-                className={`text-sm font-bold transition-colors ${activeTab === t
+                onClick={() => {
+                  setActiveTab(t);
+                  // Al darle clic, guardamos la cantidad exacta de notificaciones que ya vio
+                  if (t === 'Incidencias' && isMaestro) {
+                    setResueltasVistas(misResueltasTotal); 
+                  }
+                }}
+                className={`text-sm font-bold transition-colors flex items-center py-4 -mb-[1px] ${activeTab === t
                   ? 'text-black border-b-2 border-black'
                   : 'text-gray-500 hover:text-gray-700'
                   }`}
               >
                 {t}
+                
+                {/* Burbuja contadora de incidencias */}
+                {t === 'Incidencias' && notificaciones > 0 && (
+                  <span className="ml-2 flex items-center justify-center bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                    {notificaciones}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -427,7 +473,7 @@ export default function SailAdminDashboard() {
           <div className="space-y-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-800">
-                Hola, {usuarioActivo ? usuarioActivo.name.split(' ')[0] : 'Cargando...'}
+                Hola, {usuarioActivo ? usuarioActivo.name.split(' ').slice(0, 2).join(' ') : 'Cargando...'}
               </h1>
               <p className="text-sm text-gray-600 mt-1">Resúmenes de operaciones de laboratorio</p>
             </div>
@@ -463,15 +509,22 @@ export default function SailAdminDashboard() {
               )}
 
               {/* TARJETA 3 */}
-              <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
+              {/* TARJETA 3 */}
+              <div 
+                onClick={() => {
+                  setActiveTab('Incidencias');
+                  if (isMaestro) setResueltasVistas(misResueltasTotal); // <--- También aquí
+                }}
+                className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all duration-200"
+                title="Ir a Incidencias"
+              >
                 <div className="bg-yellow-500 text-white px-4 py-2 text-sm font-bold">
                   {isMaestro ? 'Mis fallas reportadas' : 'Notas de maestros'}
                 </div>
-                {/* flex-grow*/}
-                <div className="bg-yellow-500 px-4 py-6 text-white flex-grow">
+                <div className="bg-yellow-500 px-4 py-6 text-white flex-grow group-hover:brightness-105 transition-all">
                   <div className="text-5xl font-bold">
                     {isMaestro
-                      ? incidencias.filter(i => i.status === 'PENDING' && i.reportador === usuarioActivo?.name).length
+                      ? incidencias.filter(i => i.status === 'PENDING' && i.reportedById === usuarioActivo?.id).length // <--- Filtrado seguro por ID
                       : incidencias.filter(i => i.status === 'PENDING').length
                     }
                   </div>
@@ -568,7 +621,7 @@ export default function SailAdminDashboard() {
 
         {activeTab === 'Incidencias' && (
           <GestionIncidencias
-            incidencias={isMaestro ? incidencias.filter(i => i.reportador === usuarioActivo?.name) : incidencias}
+            incidencias={isMaestro ? incidencias.filter(i => i.reportedById === usuarioActivo?.id) : incidencias} 
             clases={clases}
             usuarioActivo={usuarioActivo}
             onIncidenciaActualizada={cargarDatosBD}
@@ -696,6 +749,21 @@ export default function SailAdminDashboard() {
                       <span>{erroresEdicion.horario}</span>
                     </div>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Grupo</label>
+                  <input
+                    type="text"
+                    value={editGrupo}
+                    onChange={(e) => {
+                      setEditGrupo(e.target.value);
+                      if (erroresEdicion.grupo) setErroresEdicion({ ...erroresEdicion, grupo: undefined });
+                    }}
+                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium outline-none transition-colors ${
+                      erroresEdicion.grupo ? 'border-red-500 focus:ring-red-500 bg-red-50' : 'border-gray-300 focus:ring-blue-500'
+                    }`}
+                  />
                 </div>
 
                 <div className="flex gap-3 mt-1 items-center">

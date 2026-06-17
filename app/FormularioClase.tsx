@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 
 interface Laboratorio { id: number; name: string; }
 interface Maestro { id: string; name: string; }
-interface Clase { id: string; nombre: string; laboratorio: string; horario: string; dayOfWeek: number; }
+interface Clase { id: string; nombre: string; laboratorio: string; horario: string; dayOfWeek: number; grupo: string; }
 interface Asignaturas { id: number; name: string; materiaCode: string; color?: string; }
 
 interface FormularioClaseProps {
@@ -23,6 +23,7 @@ interface FormularioClaseProps {
     laboratorioId: string;
     maestroId: string;
     color: string;
+    grupo: string;
   }>;
 }
 
@@ -32,12 +33,14 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
   const [maestro, setMaestro] = useState('');
   const [dia, setDia] = useState(initialValues?.dia || 'Lunes');
   const [duracion, setDuracion] = useState(initialValues?.duracion || 1);
+  const [grupo, setGrupo] = useState(initialValues?.grupo || '');
   const [maestros, setMaestros] = useState<Maestro[]>([]);
   const [errores, setErrores] = useState<{
     nombre?: string;
     lab?: string;
     maestro?: string;
     horario?: string;
+    grupo?: string;
   }>({});
   const [enviando, setEnviando] = useState(false);
 
@@ -179,6 +182,10 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       nuevosErrores.horario = 'Debes seleccionar un bloque horario disponible';
     }
 
+    if (!grupo.trim()) {
+      nuevosErrores.grupo = 'Por favor, ingresa el grupo de la asignatura';
+    }
+
     // Si hay errores, mostrarlos y retornar
     if (Object.keys(nuevosErrores).length > 0) {
       setErrores(nuevosErrores);
@@ -194,7 +201,8 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       maestroId: maestro,
       dia,
       horario,
-      duracion
+      duracion,
+      grupo
     };
 
     onClaseCreada(datosClase);
@@ -307,6 +315,28 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
           </div>
         </div>
 
+        {/* Grupo */}
+          <div className="col-span-1">
+            <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
+            <input
+              type="text"
+              placeholder="Ej. 501, A, etc."
+              value={grupo}
+              onChange={(e) => {
+                setGrupo(e.target.value);
+                if (errores.grupo) setErrores({ ...errores, grupo: undefined });
+              }}
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
+                errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
+            />
+            {errores.grupo && (
+              <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
+                <span>{errores.grupo}</span>
+              </div>
+            )}
+          </div>
 
         <div className="grid grid-cols-2 gap-4">
           {/* Día de la semana */}

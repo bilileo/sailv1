@@ -82,7 +82,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('ClassSession')
-      .select('id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, asignaturaId, Laboratory(id, name), Asignatura(id, name, color)')
+      .select('id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupo, asignaturaId, Laboratory(id, name), Asignatura(id, name, color)')
       .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE']);
 
     if (token.role === 'MAESTRO') {
@@ -106,6 +106,7 @@ export async function GET(request: Request) {
         maestroId: row['teacherId'],
         status: row['status'],
         nombre: asignatura?.['name'] || 'Sin Asignar',
+        grupo: row['grupo'],
         laboratorio: laboratory ? laboratory['name'] : 'Sin Asignar',
         laboratorioId: laboratory?.['id'] || row['laboratoryId'],
         dayOfWeek: row['dayOfWeek'],
@@ -152,6 +153,7 @@ export async function POST(request: Request) {
         laboratoryId: parseInt(body.laboratorioId, 10),
         teacherId: body.maestroId,
         asignaturaId,
+        grupo: body.grupo || null,
         dayOfWeek: dayOfWeek,
         startTime: startTime,
         endTime: endTime,
@@ -218,19 +220,29 @@ export async function PUT(request: Request) {
       if (asignaturaError) throw asignaturaError;
     }
 
-    const { error } = await supabase
-      .from('ClassSession')
-      .update({
-        laboratoryId: parseInt(body.laboratorioId, 10),
-        dayOfWeek: dayOfWeek,
-        startTime: startTime,
-        endTime: endTime,
-        status: body.status || 'ACTIVE'
-      })
-      .eq('id', body.id);
+    const updatePayload: any = {
+      laboratoryId: parseInt(body.laboratorioId, 10),
+      dayOfWeek: dayOfWeek,
+      startTime: startTime,
+      endTime: endTime,
+      status: body.status || 'ACTIVE'
+    };
 
-    if (error) throw error;
-    return NextResponse.json({ success: true });
+    if (body.grupo && body.grupo.trim() !== '') {
+      updatePayload.grupo = body.grupo;
+    } else {
+      if (body.status !== 'MAINTENANCE') {
+        updatePayload.grupo = null;
+      }
+    }
+
+    const { error } = await supabase
+          .from('ClassSession')
+          .update(updatePayload) 
+          .eq('id', body.id);
+
+        if (error) throw error;
+        return NextResponse.json({ success: true });
   } catch (error: unknown) {
     console.error("Error en PUT:", error);
     const message = error instanceof Error ? error.message : String(error);
