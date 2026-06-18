@@ -5,7 +5,7 @@ import { NuevaClase } from './lib/attendance-types';
 import { toast } from 'sonner';
 
 interface Laboratorio { id: number; name: string; }
-interface Maestro { id: string; name: string; }
+interface Maestro { id: number; name: string; }
 interface Clase { id: string; nombre: string; laboratorio: string; horario: string; dayOfWeek: number; grupo: string; }
 interface Asignaturas { id: number; name: string; materiaCode: string; color?: string; }
 
@@ -35,6 +35,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
   const [duracion, setDuracion] = useState(initialValues?.duracion || 1);
   const [grupo, setGrupo] = useState(initialValues?.grupo || '');
   const [maestros, setMaestros] = useState<Maestro[]>([]);
+  const [cargandoMaestros, setCargandoMaestros] = useState(false);
   const [errores, setErrores] = useState<{
     nombre?: string;
     lab?: string;
@@ -47,22 +48,58 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
   // Para encontrar asignaturas
   const [asignaturas, setAsignaturas] = useState<Asignaturas[]>([]);
 
-  // Cargar maestros
+  // Cargar maestros según la asignatura seleccionada
   useEffect(() => {
-    const cargarMaestros = async () => {
+    const cargarMaestrosPorAsignatura = async () => {
+      if (!nombre) {
+        setMaestros([]);
+        setMaestro('');
+        return;
+      }
+
+      const asignaturaSeleccionada = asignaturas.find((a) => a.name === nombre);
+
+      if (!asignaturaSeleccionada) {
+        setMaestros([]);
+        setMaestro('');
+        return;
+      }
+
+      setCargandoMaestros(true);
+
       try {
-        const res = await fetch('/api/maestros');
+        const res = await fetch(`/api/maestros?asignaturaId=${asignaturaSeleccionada.id}`);
+
         if (res.ok) {
-          const data = await res.json();
+          const data: Maestro[] = await res.json();
+
           setMaestros(data);
-          if (data.length > 0) setMaestro(data[0].id);
+
+          setMaestro((maestroActual) => {
+            const maestroSigueDisponible = data.some((m) => m.id.toString() === maestroActual);
+
+            if (maestroSigueDisponible) {
+              return maestroActual;
+            }
+
+            return data.length > 0 ? data[0].id.toString() : '';
+          });
+        } else {
+          setMaestros([]);
+          setMaestro('');
+          toast.error('Error al cargar maestros de la asignatura');
         }
       } catch (error) {
         console.error('Error cargando maestros:', error);
+        setMaestros([]);
+        setMaestro('');
+      } finally {
+        setCargandoMaestros(false);
       }
     };
-    cargarMaestros();
-  }, []);
+
+    cargarMaestrosPorAsignatura();
+  }, [nombre, asignaturas]);
 
 
   // Obtenemos las asignaturas disponibles para seleccionarlas en el formulario
@@ -217,6 +254,8 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
 
     // Limpiar formulario
     setNombre('');
+    setMaestro('');
+    setMaestros([]);
     setErrores({});
     setEnviando(false);
   };
@@ -234,7 +273,9 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
             value={nombre}
             onChange={(e) => {
               setNombre(e.target.value);
+              setMaestro('');
               if (errores.nombre) setErrores({ ...errores, nombre: undefined });
+              if (errores.maestro) setErrores({ ...errores, maestro: undefined });
             }}
             className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.nombre
               ? 'border-red-500 bg-red-50'
@@ -290,21 +331,32 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
             <label className="block text-sm font-bold text-gray-800 mb-1">Maestro</label>
             <select
               value={maestro}
+              disabled={!nombre || cargandoMaestros || maestros.length === 0}
               onChange={(e) => {
                 setMaestro(e.target.value);
                 if (errores.maestro) setErrores({ ...errores, maestro: undefined });
               }}
-              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.maestro
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed ${errores.maestro
                 ? 'border-red-500 bg-red-50'
                 : 'border-gray-300'
                 }`}
             >
-              <option value="">Seleccionar...</option>
-              {maestros.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
+              {!nombre ? (
+                <option value="">Primero selecciona una asignatura</option>
+              ) : cargandoMaestros ? (
+                <option value="">Cargando maestros...</option>
+              ) : maestros.length === 0 ? (
+                <option value="">No hay maestros asignados</option>
+              ) : (
+                <>
+                  <option value="">Seleccionar...</option>
+                  {maestros.map((m) => (
+                    <option key={m.id} value={m.id.toString()}>
+                      {m.name}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
             {errores.maestro && (
               <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
@@ -316,27 +368,27 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
         </div>
 
         {/* Grupo */}
-          <div className="col-span-1">
-            <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
-            <input
-              type="text"
-              placeholder="Ej. 501, A, etc."
-              value={grupo}
-              onChange={(e) => {
-                setGrupo(e.target.value);
-                if (errores.grupo) setErrores({ ...errores, grupo: undefined });
-              }}
-              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
-                errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
-            />
-            {errores.grupo && (
-              <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
-                <span>{errores.grupo}</span>
-              </div>
-            )}
-          </div>
+        <div className="col-span-1">
+          <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
+          <input
+            type="text"
+            placeholder="Ej. 501, A, etc."
+            value={grupo}
+            onChange={(e) => {
+              setGrupo(e.target.value);
+              if (errores.grupo) setErrores({ ...errores, grupo: undefined });
+            }}
+            className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
+              errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
+          />
+          {errores.grupo && (
+            <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+              <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
+              <span>{errores.grupo}</span>
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           {/* Día de la semana */}
@@ -455,7 +507,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
 
   // Cargar asignaturas al abrir el formulario para asegurar datos frescos
   useEffect(() => {
-    if (open) cargarAsignaturas();
+    if (open || open === undefined) cargarAsignaturas();
   }, [open]);
 
   if (open) {

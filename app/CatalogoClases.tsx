@@ -1,8 +1,13 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Edit2, CheckCircle, AlertTriangle, Plus } from 'lucide-react';
+import { X, Trash2, Edit2, CheckCircle, AlertTriangle, Plus, UserPlus } from 'lucide-react';
 import { CatalogoClase } from './lib/attendance-types';
 import { toast } from 'sonner';
+
+interface Maestro {
+  id: number;
+  name: string;
+}
 
 export function CatalogoClases() {
 
@@ -10,6 +15,14 @@ export function CatalogoClases() {
 
 
   const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
+
+  // Estados para el modal de profesores
+  const [modalProfesoresAbierto, setModalProfesoresAbierto] = useState(false);
+  const [catalogoSeleccionado, setCatalogoSeleccionado] = useState<CatalogoClase | null>(null);
+  const [maestros, setMaestros] = useState<Maestro[]>([]);
+  const [profesoresSeleccionados, setProfesoresSeleccionados] = useState<number[]>([]);
+  const [cargandoProfesores, setCargandoProfesores] = useState(false);
+  const [guardandoProfesores, setGuardandoProfesores] = useState(false);
 
   // Estados del formulario y validaciones
   const [editId, setEditId] = useState<string | null>(null);
@@ -148,6 +161,81 @@ export function CatalogoClases() {
     setMostrarConfirmacion(true);
   };
 
+  const abrirModalProfesores = async (catalogo: CatalogoClase) => {
+    setCatalogoSeleccionado(catalogo);
+    setModalProfesoresAbierto(true);
+    setCargandoProfesores(true);
+
+    try {
+      const [resMaestros, resImparte] = await Promise.all([
+        fetch('/api/maestros'),
+        fetch(`/api/imparte?asignaturaId=${catalogo.id}`)
+      ]);
+
+      if (!resMaestros.ok || !resImparte.ok) {
+        toast.error('Error al cargar profesores');
+        return;
+      }
+
+      const dataMaestros = await resMaestros.json();
+      const dataImparte = await resImparte.json();
+
+      setMaestros(dataMaestros);
+      setProfesoresSeleccionados(dataImparte);
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de red al cargar profesores');
+    } finally {
+      setCargandoProfesores(false);
+    }
+  };
+
+  const cerrarModalProfesores = () => {
+    setModalProfesoresAbierto(false);
+    setCatalogoSeleccionado(null);
+    setMaestros([]);
+    setProfesoresSeleccionados([]);
+  };
+
+  const toggleProfesor = (profesorId: number) => {
+    setProfesoresSeleccionados((prev) =>
+      prev.includes(profesorId)
+        ? prev.filter((id) => id !== profesorId)
+        : [...prev, profesorId]
+    );
+  };
+
+  const guardarProfesores = async () => {
+    if (!catalogoSeleccionado) return;
+
+    setGuardandoProfesores(true);
+
+    try {
+      const res = await fetch('/api/imparte', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asignaturaId: catalogoSeleccionado.id,
+          userIds: profesoresSeleccionados
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success('Profesores actualizados correctamente');
+        cerrarModalProfesores();
+      } else {
+        toast.error(data.error || 'Error al guardar profesores');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de red al guardar profesores');
+    } finally {
+      setGuardandoProfesores(false);
+    }
+  };
+
   const confirmarEliminacion = async () => {
     if (!catalogoAEliminar) return;
     setEliminando(true);
@@ -190,27 +278,41 @@ export function CatalogoClases() {
                 <div className="px-4 py-3 text-sm text-gray-600">{item.name}</div>
                 <div className={`w-6 h-6 rounded-full ${!item.color?.startsWith('#') ? item.color : ''}`} style={item.color && item.color.startsWith('#') ? { backgroundColor: item.color } : {}}></div>
               </div>
+
               <div className="text-xs text-gray-500 mt-2">Código: {item.materiaCode}</div>
+
               <button
-                onClick={() => abrirModal(item)}
-                className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                title="Editar"
+                onClick={() => abrirModalProfesores(item)}
+                className="mt-3 w-full px-3 py-2 text-xs font-bold text-[#0b6e3f] border border-[#0b6e3f] rounded hover:bg-[#0b6e3f] hover:text-white transition-colors flex items-center justify-center gap-2"
+                title="Añadir profesor"
               >
-                <Edit2 className="w-4 h-4" />
+                <UserPlus className="w-4 h-4" />
+                Añadir profesor
               </button>
-              <button
-                onClick={() => intentarEliminar(item)}
-                className={`p-2 rounded transition-colors ${eliminando && catalogoAEliminar?.id === item.id ?
-                  'bg-red-100 text-red-600 cursor-not-allowed' :
-                  'text-red-600 hover:bg-red-100'}`}
-                title={"Eliminar"}
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+
+              <div className="flex gap-1 mt-2">
+                <button
+                  onClick={() => abrirModal(item)}
+                  className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                  title="Editar"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => intentarEliminar(item)}
+                  className={`p-2 rounded transition-colors ${eliminando && catalogoAEliminar?.id === item.id ?
+                    'bg-red-100 text-red-600 cursor-not-allowed' :
+                    'text-red-600 hover:bg-red-100'}`}
+                  title={"Eliminar"}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
       </div>
+
       {modalAbierto && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-md shadow-2xl w-full max-w-md overflow-hidden">
@@ -324,6 +426,96 @@ export function CatalogoClases() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL DE PROFESORES ================= */}
+      {modalProfesoresAbierto && catalogoSeleccionado && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-md shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                <UserPlus className="w-5 h-5 mr-2 text-[#0b6e3f]" />
+                Añadir profesor
+              </h3>
+              <button
+                onClick={cerrarModalProfesores}
+                disabled={guardandoProfesores}
+                className="text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-green-50 border border-green-100 rounded p-3">
+                <p className="text-sm font-bold text-[#0b6e3f]">{catalogoSeleccionado.name}</p>
+                <p className="text-xs text-gray-600 mt-1">Código: {catalogoSeleccionado.materiaCode}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Profesores disponibles
+                </label>
+
+                {cargandoProfesores ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-5 h-5 border-2 border-[#0b6e3f] border-t-transparent rounded-full animate-spin"></div>
+                    <span className="ml-2 text-sm text-gray-600">Cargando profesores...</span>
+                  </div>
+                ) : maestros.length === 0 ? (
+                  <div className="text-sm text-gray-500 bg-gray-50 border rounded p-4 text-center">
+                    No hay profesores registrados.
+                  </div>
+                ) : (
+                  <div className="border rounded max-h-64 overflow-y-auto divide-y">
+                    {maestros.map((maestro) => (
+                      <label
+                        key={maestro.id}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={profesoresSeleccionados.includes(maestro.id)}
+                          onChange={() => toggleProfesor(maestro.id)}
+                          className="w-4 h-4 accent-[#0b6e3f]"
+                        />
+                        <span>{maestro.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 px-6 py-4 border-t flex justify-end space-x-3">
+              <button
+                onClick={cerrarModalProfesores}
+                disabled={guardandoProfesores}
+                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarProfesores}
+                disabled={cargandoProfesores || guardandoProfesores}
+                className={`px-4 py-2 text-sm font-bold text-white rounded transition-colors shadow-sm flex items-center justify-center gap-2 ${cargandoProfesores || guardandoProfesores ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#0b6e3f] hover:bg-green-800 active:scale-95'
+                  }`}
+              >
+                {guardandoProfesores ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Guardar
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
