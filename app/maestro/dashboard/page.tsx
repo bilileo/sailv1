@@ -63,13 +63,24 @@ export default function TeacherDashboard() {
   const [manualId, setManualId] = useState('');
   const [manualName, setManualName] = useState('');
   const [manualDeviceType, setManualDeviceType] = useState('');
+  const [manualObservaciones, setManualObservaciones] = useState('');
   const [manualError, setManualError] = useState('');
   const [manualSaving, setManualSaving] = useState(false);
+  const [reportModal, setReportModal] = useState<{ studentId: string; status: 'ausente' | 'abandono' } | null>(null);
+  const [reportObservaciones, setReportObservaciones] = useState('');
+  const [deviceTypes, setDeviceTypes] = useState<Array<{ id: number; name: string }>>([]);
 
   useEffect(() => {
     getSession().then(session => {
       if (session?.user) setUsuarioActivo(session.user as { id: string; name: string; role: string });
     });
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/device-types')
+      .then(r => r.json())
+      .then(data => setDeviceTypes(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -276,13 +287,18 @@ export default function TeacherDashboard() {
     setCurrentCode('------');
   };
 
-  const handleStatusChange = async (studentId: string, newStatus: StudentStatus) => {
+  const handleStatusChange = async (studentId: string, newStatus: StudentStatus, observaciones?: string) => {
     if (!classId) return;
-    // 1. Actualización Optimista (UI responde de inmediato)
-    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status: newStatus } : s));
-    // 2. Persistencia en el archivo JSON
-    await updateStudentStatus(studentId, String(classId), newStatus);
-    setOpenReportFor(null); // Cerramos el menú contextual
+    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status: newStatus, observaciones } : s));
+    await updateStudentStatus(studentId, String(classId), newStatus, observaciones);
+    setOpenReportFor(null);
+  };
+
+  const handleConfirmReport = async () => {
+    if (!reportModal || !classId) return;
+    await handleStatusChange(reportModal.studentId, reportModal.status, reportObservaciones.trim() || undefined);
+    setReportModal(null);
+    setReportObservaciones('');
   };
 
   const handleDelete = async (studentId: string) => {
@@ -298,6 +314,7 @@ export default function TeacherDashboard() {
     setManualId('');
     setManualName('');
     setManualDeviceType('');
+    setManualObservaciones('');
     setManualOpen(true);
   };
 
@@ -323,7 +340,8 @@ export default function TeacherDashboard() {
       deviceType: manualDeviceType.trim(),
       code: currentCode,
       registeredAt: new Date().toISOString(),
-      classId: String(classId)
+      classId: String(classId),
+      observaciones: manualObservaciones.trim() || undefined
     });
     setManualSaving(false);
 
@@ -338,7 +356,7 @@ export default function TeacherDashboard() {
   };
 
   // === RENDERIZADO CONDICIONAL ===
-  
+
   const getStudentRowStyle = (status: StudentStatus = 'normal') => {
     const styles = {
       normal: 'bg-white',
@@ -353,7 +371,7 @@ export default function TeacherDashboard() {
     <div className="min-h-screen bg-[#f8f9fa] text-gray-900 font-sans pb-10">
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
         <div className="flex space-x-8">
-          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Incidencias'].map(t => {
+          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Incidencias'].map(t => {
             if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
 
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
@@ -431,16 +449,16 @@ export default function TeacherDashboard() {
             <div className="mb-6 relative">
               <QrCode size={160} strokeWidth={1.5} className="text-black" />
             </div>
-            
+
             <div className="flex flex-col items-center w-full max-w-50">
               <div className="border border-blue-400 border-dashed text-blue-500 font-bold text-3xl tracking-widest px-8 py-2 bg-white w-full text-center mb-2">
                 {currentCode}
               </div>
-              
+
               {/* Barra de progreso */}
               <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1 overflow-hidden">
-                <div 
-                  className="bg-blue-500 h-1.5 rounded-full transition-all duration-1000 ease-linear" 
+                <div
+                  className="bg-blue-500 h-1.5 rounded-full transition-all duration-1000 ease-linear"
                   style={{ width: `${(timeLeft / CODE_REFRESH_INTERVAL) * 100}%` }}
                 />
               </div>
@@ -470,8 +488,13 @@ export default function TeacherDashboard() {
               <ul className="divide-y divide-gray-300">
                 {students.map((student) => (
                   <li key={student.id} className={`flex justify-between items-center px-4 py-3 ${getStudentRowStyle(student.status)} hover:brightness-95 transition-colors`}>
-                    <span className="text-sm font-medium">{student.name} - {student.id}</span>
-                    
+                    <div>
+                      <span className="text-sm font-medium">{student.name} - {student.id}</span>
+                      {student.observaciones && (
+                        <p className="text-xs text-gray-500 mt-0.5 italic">{student.observaciones}</p>
+                      )}
+                    </div>
+
                     {/* Controles de Acción por Alumno */}
                     <div className="flex items-center space-x-3 text-black">
                       <button onClick={() => handleDelete(student.id)} className="hover:text-red-500">
@@ -480,7 +503,7 @@ export default function TeacherDashboard() {
                       <button onClick={() => handleStatusChange(student.id, student.status === 'tarde' ? 'normal' : 'tarde')} className="hover:text-yellow-600">
                         <Clock size={18} />
                       </button>
-                      
+
                       {/* Menú Desplegable de Reportes */}
                       <div className="relative">
                         <button
@@ -491,10 +514,16 @@ export default function TeacherDashboard() {
                         </button>
                         {openReportFor === student.id && (
                           <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-300 rounded shadow-lg z-10">
-                            <button onClick={() => handleStatusChange(student.id, 'ausente')} className="block w-full text-left text-sm px-3 py-2 hover:bg-gray-100">
+                            <button
+                              onClick={() => { setOpenReportFor(null); setReportModal({ studentId: student.id, status: 'ausente' }); setReportObservaciones(''); }}
+                              className="block w-full text-left text-sm px-3 py-2 hover:bg-gray-100"
+                            >
                               Ausente
                             </button>
-                            <button onClick={() => handleStatusChange(student.id, 'abandono')} className="block w-full text-left text-sm px-3 py-2 hover:bg-red-50">
+                            <button
+                              onClick={() => { setOpenReportFor(null); setReportModal({ studentId: student.id, status: 'abandono' }); setReportObservaciones(''); }}
+                              className="block w-full text-left text-sm px-3 py-2 hover:bg-red-50"
+                            >
                               Abandono temprano
                             </button>
                           </div>
@@ -570,9 +599,23 @@ export default function TeacherDashboard() {
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
                   >
                     <option value="">Selecciona una opcion</option>
-                    <option value="Propio">Propio</option>
-                    <option value="Universidad">Universidad</option>
+                    {deviceTypes.map(dt => (
+                      <option key={dt.id} value={dt.name}>{dt.name}</option>
+                    ))}
                   </select>
+                </div>
+                <div>
+                  <label htmlFor="manualObservaciones" className="block text-xs font-semibold text-gray-700 mb-1">
+                    Observaciones <span className="text-gray-400 font-normal">(Opcional)</span>
+                  </label>
+                  <textarea
+                    id="manualObservaciones"
+                    value={manualObservaciones}
+                    onChange={(e) => setManualObservaciones(e.target.value)}
+                    rows={2}
+                    placeholder="Ej. El alumno llegó sin dispositivo propio..."
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8] resize-none"
+                  />
                 </div>
 
                 {manualError && (
@@ -596,6 +639,43 @@ export default function TeacherDashboard() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+        {reportModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md bg-white rounded shadow-lg border border-gray-200">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <h3 className="text-sm font-bold text-gray-900">
+                  Marcar como {reportModal.status === 'ausente' ? 'Ausente' : 'Abandono temprano'}
+                </h3>
+                <button onClick={() => setReportModal(null)} className="text-gray-500 hover:text-gray-700">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="px-4 py-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Observaciones <span className="text-gray-400 font-normal">(Opcional)</span>
+                  </label>
+                  <textarea
+                    value={reportObservaciones}
+                    onChange={(e) => setReportObservaciones(e.target.value)}
+                    rows={3}
+                    placeholder="Ej. El alumno no se presentó sin justificación..."
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8] resize-none"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex items-center justify-end space-x-2 pt-1">
+                  <button type="button" onClick={() => setReportModal(null)} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800">
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={handleConfirmReport} className="bg-[#1a73e8] hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded">
+                    Confirmar
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
