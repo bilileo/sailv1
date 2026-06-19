@@ -356,7 +356,7 @@ export default function TeacherDashboard() {
   };
 
   // === RENDERIZADO CONDICIONAL ===
-  
+
   const getStudentRowStyle = (status: StudentStatus = 'normal') => {
     const styles = {
       normal: 'bg-white',
@@ -371,7 +371,7 @@ export default function TeacherDashboard() {
     <div className="min-h-screen bg-[#f8f9fa] text-gray-900 font-sans pb-10">
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
         <div className="flex space-x-8">
-          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Incidencias'].map(t => {
+          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Incidencias'].map(t => {
             if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
 
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
@@ -449,16 +449,16 @@ export default function TeacherDashboard() {
             <div className="mb-6 relative">
               <QrCode size={160} strokeWidth={1.5} className="text-black" />
             </div>
-            
+
             <div className="flex flex-col items-center w-full max-w-50">
               <div className="border border-blue-400 border-dashed text-blue-500 font-bold text-3xl tracking-widest px-8 py-2 bg-white w-full text-center mb-2">
                 {currentCode}
               </div>
-              
+
               {/* Barra de progreso */}
               <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1 overflow-hidden">
-                <div 
-                  className="bg-blue-500 h-1.5 rounded-full transition-all duration-1000 ease-linear" 
+                <div
+                  className="bg-blue-500 h-1.5 rounded-full transition-all duration-1000 ease-linear"
                   style={{ width: `${(timeLeft / CODE_REFRESH_INTERVAL) * 100}%` }}
                 />
               </div>
