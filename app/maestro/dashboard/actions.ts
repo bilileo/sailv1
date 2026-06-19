@@ -102,20 +102,20 @@ export async function updateActiveCode(labId: string, code: string | null) {
 export async function getStudents(classId: string): Promise<StudentRow[]> {
   const { data, error } = await supabase
     .from('Attendance')
-    .select('id, studentId, status, Student ( id, name )')
+    .select('id, studentId, status, observaciones, Student ( id, name )')
     .eq('classSessionId', classId)
     .order('checkInTime', { ascending: true });
 
   if (error) throw error;
 
   return (data || []).map((row) => {
-    // Supabase standard join can return an array or object depending on schema
-    const r = row as { 
-      studentId: string; 
-      Student: { id: string; name: string } | { id: string; name: string }[] | null; 
-      status: string 
+    const r = row as {
+      studentId: string;
+      Student: { id: string; name: string } | { id: string; name: string }[] | null;
+      status: string;
+      observaciones?: string;
     };
-    
+
     let studentData: { id: string; name: string } | null = null;
     if (r.Student) {
       studentData = Array.isArray(r.Student) ? r.Student[0] : r.Student;
@@ -124,21 +124,25 @@ export async function getStudents(classId: string): Promise<StudentRow[]> {
     return {
       id: r.studentId,
       name: studentData?.name || r.studentId,
-      status: attendanceToStatus[r.status as AttendanceStatus] || 'normal'
+      status: attendanceToStatus[r.status as AttendanceStatus] || 'normal',
+      observaciones: r.observaciones
     };
   });
 }
 
 // Actualiza el estado de un alumno (llegada tardía, ausente, etc.)
-export async function updateStudentStatus(studentId: string, classId: string, status: StudentStatus) {
+export async function updateStudentStatus(studentId: string, classId: string, status: StudentStatus, observaciones?: string) {
+  const payload: Record<string, unknown> = { status: statusToAttendance[status] };
+  if (observaciones !== undefined) payload.observaciones = observaciones;
+
   const { error } = await supabase
     .from('Attendance')
-    .update({ status: statusToAttendance[status] })
+    .update(payload)
     .eq('classSessionId', classId)
     .eq('studentId', studentId);
 
   if (error) throw error;
-  revalidatePath('/'); // Refresca la UI automáticamente
+  revalidatePath('/');
 }
 
 // Elimina a un alumno de la lista
@@ -205,7 +209,7 @@ export async function validateActiveCode(code: string): Promise<string | null> {
 
 // Registra un alumno validando que el código siga siendo correcto
 export async function registerStudent(
-  studentData: { id: string; name: string; code: string; registeredAt: string; classId?: string; deviceType?: string }
+  studentData: { id: string; name: string; code: string; registeredAt: string; classId?: string; deviceType?: string; observaciones?: string }
 ) {
   const classId = studentData.classId || (studentData.code ? await validateActiveCode(studentData.code) : null);
   if (!classId) {
@@ -250,26 +254,27 @@ export async function registerStudent(
     return { success: false, error: 'No se pudo determinar el tipo de dispositivo.' };
   }
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     classSessionId: Number(classId),
     teacherId: classSession.teacherId,
     studentId: studentData.id,
     registrationCode: studentData.code,
     deviceTypeId,
-    status: 'PRESENT' as AttendanceStatus
+    status: 'PRESENT' as AttendanceStatus,
+    ...(studentData.observaciones ? { observaciones: studentData.observaciones } : {})
   };
 
   if (existingAttendance?.id) {
     const { error } = await supabase
       .from('Attendance')
-      .update(payload)
+      .update(payload as Record<string, unknown>)
       .eq('id', existingAttendance.id);
 
     if (error) throw error;
   } else {
     const { error } = await supabase
       .from('Attendance')
-      .insert([payload]);
+      .insert([payload as Record<string, unknown>]);
 
     if (error) throw error;
   }

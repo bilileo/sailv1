@@ -43,6 +43,7 @@ export async function GET(request: Request) {
         status,
         checkInTime,
         checkOutTime,
+        observaciones,
         Student ( name, email ),
         DeviceType ( name ),
         ClassSession ( Asignatura ( name ), Laboratory ( name ) )
@@ -68,6 +69,7 @@ export async function GET(request: Request) {
         status: row['status'],
         checkInTime: row['checkInTime'],
         checkOutTime: row['checkOutTime'],
+        observaciones: row['observaciones'],
         alumno: (row['Student'] as Record<string, unknown> | undefined)?.['name'],
         email: (row['Student'] as Record<string, unknown> | undefined)?.['email'],
         clase: ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Asignatura'] as Record<string, unknown> | undefined)?.['name'],
@@ -100,7 +102,8 @@ export async function POST(request: Request) {
       deviceTypeId,
       status: body.status || 'PRESENT',
       checkInTime: body.checkInTime,
-      checkOutTime: body.checkOutTime
+      checkOutTime: body.checkOutTime,
+      ...(body.observaciones ? { observaciones: body.observaciones } : {})
     };
 
     const { error } = await supabase
@@ -138,6 +141,7 @@ export async function PUT(request: Request) {
     }
     if (body.checkInTime !== undefined) updatePayload.checkInTime = body.checkInTime;
     if (body.checkOutTime !== undefined) updatePayload.checkOutTime = body.checkOutTime;
+    if (body.observaciones !== undefined) updatePayload.observaciones = body.observaciones;
 
     if (Object.keys(updatePayload).length === 0) {
       return NextResponse.json({ error: 'Sin datos para actualizar' }, { status: 400 });

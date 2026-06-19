@@ -4,6 +4,7 @@ export interface StudentRow {
   id: string;
   name: string;
   status: StudentStatus;
+  observaciones?: string;
 }
 
 export interface CatalogoClase {

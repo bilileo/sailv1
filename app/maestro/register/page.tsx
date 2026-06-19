@@ -9,15 +9,24 @@ export default function StudentRegisterPage() {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [deviceType, setDeviceType] = useState('');
+  const [observaciones, setObservaciones] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [deviceTypes, setDeviceTypes] = useState<Array<{ id: number; name: string }>>([]);
   
   const router = useRouter();
   const searchParams = useSearchParams();
   const codeFromUrl = (searchParams.get('code') ?? '').toUpperCase();
   const classIdFromUrl = searchParams.get('classId') ?? '';
   const [classId, setClassId] = useState('');
+
+  useEffect(() => {
+    fetch('/api/device-types')
+      .then(r => r.json())
+      .then(data => setDeviceTypes(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   // Validación inicial rápida usando la sesión de la pantalla anterior
   useEffect(() => {
@@ -59,6 +68,7 @@ export default function StudentRegisterPage() {
       code: codeFromUrl,
       registeredAt: new Date().toISOString(),
       classId: resolvedClassId,
+      observaciones: observaciones.trim() || undefined,
     });
 
     if (result.success) {
@@ -139,9 +149,23 @@ export default function StudentRegisterPage() {
               required
             >
               <option value="">Selecciona una opcion</option>
-              <option value="Propio">Propio</option>
-              <option value="Universidad">Universidad</option>
+              {deviceTypes.map(dt => (
+                <option key={dt.id} value={dt.name}>{dt.name}</option>
+              ))}
             </select>
+          </div>
+          <div>
+            <label htmlFor="observaciones" className="block text-sm font-medium text-gray-700 mb-1">
+              Observaciones <span className="text-gray-400 text-xs font-normal">(Opcional)</span>
+            </label>
+            <textarea
+              id="observaciones"
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              rows={3}
+              placeholder="Ej. Llegué tarde porque..."
+              className="text-black w-full px-3 py-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#1a73e8] resize-none"
+            />
           </div>
           
           {error && <p className="text-sm text-red-600 text-center">{error}</p>}
