@@ -104,6 +104,7 @@ export async function GET(request: Request) {
       return {
         id: row['id'],
         maestroId: row['teacherId'],
+        asignaturaId: row['asignaturaId'],
         status: row['status'],
         nombre: asignatura?.['name'] || 'Sin Asignar',
         grupo: row['grupo'],
@@ -188,6 +189,14 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (!body?.id) {
+      return NextResponse.json({ error: 'ID de sesión no proporcionado' }, { status: 400 });
+    }
+
+    if (!body?.laboratorioId || !body?.maestroId || !body?.asignaturaId || !body?.horario || !body?.dia) {
+      return NextResponse.json({ error: 'Faltan datos obligatorios para editar la sesión' }, { status: 400 });
+    }
+
     const dayOfWeek = mapaDiasPostgres[body.dia] || 1;
 
     const horaIStr = body.horario.split('-')[0].trim();
@@ -198,30 +207,21 @@ export async function PUT(request: Request) {
     const startTime = `${horaIParsed.toString().padStart(2, '0')}:00:00`;
     const endTime = `${horaF.toString().padStart(2, '0')}:00:00`;
 
-    const { data: classSession, error: classFetchError } = await supabase
-      .from('ClassSession')
-      .select('asignaturaId')
-      .eq('id', body.id)
-      .maybeSingle();
+    const asignaturaId = Number(body.asignaturaId);
+    const maestroId = Number(body.maestroId);
 
-    if (classFetchError) throw classFetchError;
+    if (Number.isNaN(asignaturaId)) {
+      return NextResponse.json({ error: 'Selecciona una asignatura válida' }, { status: 400 });
+    }
 
-    const asignaturaId = body.asignaturaId || classSession?.asignaturaId || null;
-
-    if (asignaturaId && body.nombre) {
-      const { error: asignaturaError } = await supabase
-        .from('Asignatura')
-        .update({
-          name: body.nombre,
-          color: body.color || undefined
-        })
-        .eq('id', asignaturaId);
-
-      if (asignaturaError) throw asignaturaError;
+    if (Number.isNaN(maestroId)) {
+      return NextResponse.json({ error: 'Selecciona un maestro válido' }, { status: 400 });
     }
 
     const updatePayload: any = {
       laboratoryId: parseInt(body.laboratorioId, 10),
+      teacherId: maestroId,
+      asignaturaId,
       dayOfWeek: dayOfWeek,
       startTime: startTime,
       endTime: endTime,
@@ -237,12 +237,18 @@ export async function PUT(request: Request) {
     }
 
     const { error } = await supabase
-          .from('ClassSession')
-          .update(updatePayload) 
-          .eq('id', body.id);
+      .from('ClassSession')
+      .update(updatePayload)
+      .eq('id', body.id);
 
-        if (error) throw error;
-        return NextResponse.json({ success: true });
+    if (!error && asignaturaId && maestroId) {
+      await supabase
+        .from('Imparte')
+        .upsert([{ userId: maestroId, asignaturaId }], { onConflict: 'userId,asignaturaId' });
+    }
+
+    if (error) throw error;
+    return NextResponse.json({ success: true });
   } catch (error: unknown) {
     console.error("Error en PUT:", error);
     const message = error instanceof Error ? error.message : String(error);
