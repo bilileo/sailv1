@@ -13,19 +13,24 @@ import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
 // 1. Actualizamos la interfaz para usar dayOfWeek
-interface Clase { id: string; nombre: string; laboratorio: string; horario: string; status?: string; dayOfWeek: number; color?: string; grupo?: string;}
+interface Clase {
+  id: string;
+  nombre: string;
+  laboratorio: string;
+  laboratorioId?: string | number;
+  horario: string;
+  status?: string;
+  dayOfWeek: number;
+  color?: string;
+  grupo?: string;
+  maestroId?: string | number;
+  asignaturaId?: string | number;
+}
 interface Laboratorio { id: number; name: string; }
+interface Maestro { id: number; name: string; }
 
 const HORAS_24 = Array.from({ length: 24 }, (_, i) => `${i}:00- ${i + 1}:00`);
 const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-const PALETA_COLORES = [
-  { id: 'blue', clase: 'bg-blue-600' },
-  { id: 'emerald', clase: 'bg-emerald-600' },
-  { id: 'purple', clase: 'bg-purple-600' },
-  { id: 'rose', clase: 'bg-rose-600' },
-  { id: 'orange', clase: 'bg-orange-600' },
-  { id: 'teal', clase: 'bg-teal-600' },
-];
 
 // Función helper para convertir el número de PostgreSQL (1-7) a Nombre de Día
 const getNombreDia = (dayOfWeek?: number) => {
@@ -64,12 +69,18 @@ export default function SailAdminDashboard() {
   const [claseSeleccionada, setClaseSeleccionada] = useState<Clase | null>(null);
   const [claseAcciones, setClaseAcciones] = useState<Clase | null>(null);
   const [editNombre, setEditNombre] = useState('');
+  const [editAsignaturaId, setEditAsignaturaId] = useState('');
+  const [editMaestroId, setEditMaestroId] = useState('');
+  const [maestrosEdicion, setMaestrosEdicion] = useState<Maestro[]>([]);
+  const [cargandoMaestrosEdicion, setCargandoMaestrosEdicion] = useState(false);
   const [editLab, setEditLab] = useState('');
+  const [editDia, setEditDia] = useState('');
   const [editHorario, setEditHorario] = useState('');
-  const [erroresEdicion, setErroresEdicion] = useState<{ nombre?: string; lab?: string; horario?: string; grupo?: string }>({});
+  const [erroresEdicion, setErroresEdicion] = useState<{ asignatura?: string; maestro?: string; lab?: string; dia?: string; horario?: string; grupo?: string }>({});
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [editDuracion, setEditDuracion] = useState(1);
+
   interface IncidenciaMinimal {
     id: string;
     status?: string;
@@ -81,9 +92,9 @@ export default function SailAdminDashboard() {
     reportedById?: string;
     respuesta?: string;
   }
+
   const [incidencias, setIncidencias] = useState<IncidenciaMinimal[]>([]);
   const [editStatus, setEditStatus] = useState('ACTIVE');
-  const [editColor, setEditColor] = useState('bg-blue-600');
   const [resueltasVistas, setResueltasVistas] = useState(0);
   const misResueltasTotal = isMaestro ? incidencias.filter(i => i.status === 'RESOLVED' && i.reportedById === usuarioActivo?.id).length : 0;
   const notificacionesMaestro = Math.max(0, misResueltasTotal - resueltasVistas);
@@ -94,8 +105,7 @@ export default function SailAdminDashboard() {
     .filter(c => {
       // 2. Usamos nuestra función getNombreDia en lugar de new Date(startTime)
       const diaClase = getNombreDia(c.dayOfWeek);
-      const diaDeLaClaseEditada = claseSeleccionada ? getNombreDia(claseSeleccionada.dayOfWeek) : '';
-      return c.id !== claseSeleccionada?.id && c.laboratorio === labNombreEdicion && diaClase === diaDeLaClaseEditada;
+      return c.id !== claseSeleccionada?.id && c.laboratorio === labNombreEdicion && diaClase === editDia;
     })
     .flatMap(c => {
       const horaI = parseInt(c.horario.split('-')[0]);
@@ -140,6 +150,49 @@ export default function SailAdminDashboard() {
     return () => clearInterval(radar);
   }, []);
 
+  useEffect(() => {
+    const cargarMaestrosEdicion = async () => {
+      if (!claseSeleccionada || !editAsignaturaId) {
+        setMaestrosEdicion([]);
+        setEditMaestroId('');
+        return;
+      }
+
+      setCargandoMaestrosEdicion(true);
+
+      try {
+        const res = await fetch(`/api/maestros?asignaturaId=${editAsignaturaId}`);
+
+        if (res.ok) {
+          const data: Maestro[] = await res.json();
+          setMaestrosEdicion(data);
+
+          setEditMaestroId((maestroActual) => {
+            const maestroSigueDisponible = data.some((m) => m.id.toString() === maestroActual);
+
+            if (maestroSigueDisponible) {
+              return maestroActual;
+            }
+
+            return data.length > 0 ? data[0].id.toString() : '';
+          });
+        } else {
+          setMaestrosEdicion([]);
+          setEditMaestroId('');
+          toast.error('Error al cargar maestros de la asignatura');
+        }
+      } catch (error) {
+        console.error('Error cargando maestros para edición:', error);
+        setMaestrosEdicion([]);
+        setEditMaestroId('');
+      } finally {
+        setCargandoMaestrosEdicion(false);
+      }
+    };
+
+    cargarMaestrosEdicion();
+  }, [editAsignaturaId, claseSeleccionada]);
+
   const handleCrearClase = async (datosClase: import('./lib/attendance-types').NuevaClase) => {
     await fetch('/api/clases', {
       method: 'POST',
@@ -161,16 +214,26 @@ export default function SailAdminDashboard() {
   const handleAbrirModal = (clase: Clase) => {
     setErroresEdicion({});
     setClaseSeleccionada(clase);
-    setEditNombre(clase.nombre);
+
+    const asignaturaInicial = clase.asignaturaId
+      ? catalogo.find(a => a.id.toString() === clase.asignaturaId?.toString())
+      : catalogo.find(a => a.name === clase.nombre);
+
+    setEditAsignaturaId(asignaturaInicial?.id?.toString() || '');
+    setEditNombre(asignaturaInicial?.name || clase.nombre);
+    setEditMaestroId(clase.maestroId?.toString() || '');
+
     const labId = laboratorios.find(l => l.name === clase.laboratorio)?.id.toString() || '';
     setEditLab(labId);
-    setEditHorario(clase.horario);
+    setEditDia(getNombreDia(clase.dayOfWeek));
     setEditStatus(clase.status || 'ACTIVE');
-    setEditColor(clase.color || 'bg-blue-600');
     setEditGrupo(clase.grupo || '');
 
     const hI = parseInt(clase.horario.split('-')[0]);
     const hF = parseInt(clase.horario.split('-')[1]);
+    const horarioNormalizado = `${hI}:00- ${hF}:00`;
+
+    setEditHorario(horarioNormalizado);
     setEditDuracion(hF - hI);
   };
 
@@ -197,6 +260,9 @@ export default function SailAdminDashboard() {
   const cerrarModalEdicion = () => {
     setClaseSeleccionada(null);
     setMostrarConfirmacion(false);
+    setEditAsignaturaId('');
+    setEditMaestroId('');
+    setMaestrosEdicion([]);
   };
 
   const handleIntentarEliminar = (e: React.MouseEvent) => {
@@ -229,16 +295,22 @@ export default function SailAdminDashboard() {
     if (!claseSeleccionada) return;
 
     setErroresEdicion({});
-    const nuevosErrores: { nombre?: string; lab?: string; horario?: string; grupo?: string} = {};
+    const nuevosErrores: typeof erroresEdicion = {};
 
-    if (!editNombre.trim()) {
-      nuevosErrores.nombre = 'El nombre es obligatorio';
-    } else if (editNombre.trim().length < 3) {
-      nuevosErrores.nombre = 'El nombre debe tener al menos 3 caracteres';
+    if (!editAsignaturaId) {
+      nuevosErrores.asignatura = 'Selecciona una asignatura válida';
+    }
+
+    if (!editMaestroId) {
+      nuevosErrores.maestro = 'Selecciona un maestro válido';
     }
 
     if (!editLab) {
       nuevosErrores.lab = 'Selecciona un laboratorio válido';
+    }
+
+    if (!editDia) {
+      nuevosErrores.dia = 'Selecciona un día válido';
     }
 
     if (!editHorario) {
@@ -264,13 +336,13 @@ export default function SailAdminDashboard() {
         body: JSON.stringify({
           id: claseSeleccionada?.id,
           nombre: editNombre,
+          asignaturaId: editAsignaturaId,
+          maestroId: editMaestroId,
           laboratorioId: editLab,
           horario: editHorario,
           duracion: editDuracion,
-          // 3. Usamos getNombreDia para el payload de edición
-          dia: getNombreDia(claseSeleccionada!.dayOfWeek),
+          dia: editDia,
           status: editStatus,
-          color: editColor,
           grupo: editGrupo
         })
       });
@@ -278,9 +350,10 @@ export default function SailAdminDashboard() {
       if (res.ok) {
         toast.success('Clase actualizada');
         setClaseSeleccionada(null);
-        cargarDatosBD();
+        await cargarDatosBD();
       } else {
-        toast.error('Error al actualizar');
+        const data = await res.json();
+        toast.error(data.error || 'Error al actualizar');
       }
     } catch {
       toast.error('Error de red');
@@ -316,22 +389,22 @@ export default function SailAdminDashboard() {
     });
 
     if (!encontrada) {
-        if (isMaestro) {
-          return (
-            <div className="w-full h-full min-h-[64px] bg-green-700 border-b border-green-800/50 flex flex-col items-center justify-center p-2 select-none">
-              <span className="text-[10px] font-medium text-white/50 text-center uppercase tracking-wider">
-                Sin clase asignada
-              </span>
-            </div>
-          );
-        }
-
+      if (isMaestro) {
         return (
-          <button onClick={() => handleAbrirFormModal(hora, nombreLab)} className="w-full h-full min-h-[64px] bg-green-700 text-white/60 flex flex-col items-center justify-center p-2 text-xs border-b border-green-800/50 hover:brightness-110">
-            Disponible <span className="text-[10px]">(Haga click para agendar)</span>
-          </button>
+          <div className="w-full h-full min-h-[64px] bg-gray-100 border-b border-gray-200 flex flex-col items-center justify-center p-2 select-none">
+            <span className="text-[10px] font-medium text-gray-400 text-center uppercase tracking-wider">
+              Sin clase asignada
+            </span>
+          </div>
         );
       }
+
+      return (
+        <button onClick={() => handleAbrirFormModal(hora, nombreLab)} className="w-full h-full min-h-[64px] bg-gray-100 text-gray-500 flex flex-col items-center justify-center p-2 text-xs border-b border-gray-200 hover:bg-gray-200 transition-colors">
+          Disponible <span className="text-[10px]">(Haga click para agendar)</span>
+        </button>
+      );
+    }
 
     const esMantenimiento = encontrada.status === 'MAINTENANCE';
     const esFinalizada = encontrada.status === 'ENDED';
@@ -356,14 +429,14 @@ export default function SailAdminDashboard() {
             : esFinalizada
               ? 'bg-red-600 border-red-700'
               : esProgramada
-                ? `${!esHex ? colorClase : ''} opacity-80 border-black/10` // Si es tailwind, pone la clase
+                ? `${!esHex ? colorClase : ''} opacity-80 border-black/10`
                 : `${!esHex ? colorClase : ''} border-black/10`
           }
           ${esMantenimiento
             ? 'hover:bg-gray-600 cursor-pointer'
             : esFinalizada
               ? 'hover:bg-red-700 cursor-pointer'
-              : 'hover:brightness-110 cursor-pointer' /* <--- Hover universal para iluminar cualquier color de la paleta */
+              : 'hover:brightness-110 cursor-pointer'
           }
         `}
       >
@@ -422,7 +495,7 @@ export default function SailAdminDashboard() {
 
             const notificaciones = t === 'Incidencias'
               ? (isMaestro
-                ? notificacionesMaestro // <--- Usamos la nueva variable matemática
+                ? notificacionesMaestro
                 : incidencias.filter(i => i.status === 'PENDING').length)
               : 0;
 
@@ -431,9 +504,8 @@ export default function SailAdminDashboard() {
                 key={t}
                 onClick={() => {
                   setActiveTab(t);
-                  // Al darle clic, guardamos la cantidad exacta de notificaciones que ya vio
                   if (t === 'Incidencias' && isMaestro) {
-                    setResueltasVistas(misResueltasTotal); 
+                    setResueltasVistas(misResueltasTotal);
                   }
                 }}
                 className={`text-sm font-bold transition-colors flex items-center py-4 -mb-[1px] ${activeTab === t
@@ -442,7 +514,7 @@ export default function SailAdminDashboard() {
                   }`}
               >
                 {t}
-                
+
                 {/* Burbuja contadora de incidencias */}
                 {t === 'Incidencias' && notificaciones > 0 && (
                   <span className="ml-2 flex items-center justify-center bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
@@ -479,26 +551,21 @@ export default function SailAdminDashboard() {
             </div>
 
             <div className={`grid gap-6 ${isMaestro ? 'grid-cols-2' : 'grid-cols-3'}`}>
-
-              {/* TARJETA 1 */}
               <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
                 <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
                   Clases ({diaFiltro})
                 </div>
-                {/* flex-grow */}
                 <div className="bg-green-700 px-4 py-6 text-white flex-grow">
                   <div className="text-5xl font-bold">{clasesDelDia.length}</div>
                   <div className="text-sm mt-2">Sesiones programadas</div>
                 </div>
               </div>
 
-              {/* TARJETA 2 */}
               {!isMaestro && (
                 <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
                   <div className="bg-yellow-700 text-white px-4 py-2 text-sm font-bold">
                     Salones ocupados
                   </div>
-                  {/* flex-grow*/}
                   <div className="bg-green-700 px-4 py-6 text-white flex-grow">
                     <div className="text-5xl font-bold">{salonesOcupados}/{laboratorios.length}</div>
                     <div className="text-sm mt-2">
@@ -508,12 +575,10 @@ export default function SailAdminDashboard() {
                 </div>
               )}
 
-              {/* TARJETA 3 */}
-              {/* TARJETA 3 */}
-              <div 
+              <div
                 onClick={() => {
                   setActiveTab('Incidencias');
-                  if (isMaestro) setResueltasVistas(misResueltasTotal); // <--- También aquí
+                  if (isMaestro) setResueltasVistas(misResueltasTotal);
                 }}
                 className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all duration-200"
                 title="Ir a Incidencias"
@@ -524,7 +589,7 @@ export default function SailAdminDashboard() {
                 <div className="bg-yellow-500 px-4 py-6 text-white flex-grow group-hover:brightness-105 transition-all">
                   <div className="text-5xl font-bold">
                     {isMaestro
-                      ? incidencias.filter(i => i.status === 'PENDING' && i.reportedById === usuarioActivo?.id).length // <--- Filtrado seguro por ID
+                      ? incidencias.filter(i => i.status === 'PENDING' && i.reportedById === usuarioActivo?.id).length
                       : incidencias.filter(i => i.status === 'PENDING').length
                     }
                   </div>
@@ -533,7 +598,6 @@ export default function SailAdminDashboard() {
                   </div>
                 </div>
               </div>
-
             </div>
 
             <div className="bg-white rounded-sm border border-gray-200 shadow-sm">
@@ -567,7 +631,6 @@ export default function SailAdminDashboard() {
                   <thead className="sticky top-0 bg-gray-100 border-b z-20 shadow-sm">
                     <tr>
                       <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase border-r w-24 text-center">Hora</th>
-
                       {laboratorios.map(lab => (
                         <th
                           key={lab.id}
@@ -621,7 +684,7 @@ export default function SailAdminDashboard() {
 
         {activeTab === 'Incidencias' && (
           <GestionIncidencias
-            incidencias={isMaestro ? incidencias.filter(i => i.reportedById === usuarioActivo?.id) : incidencias} 
+            incidencias={isMaestro ? incidencias.filter(i => i.reportedById === usuarioActivo?.id) : incidencias}
             clases={clases}
             usuarioActivo={usuarioActivo}
             onIncidenciaActualizada={cargarDatosBD}
@@ -647,23 +710,36 @@ export default function SailAdminDashboard() {
 
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Nombre</label>
-                  <input
-                    type="text"
-                    value={editNombre}
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Asignatura</label>
+                  <select
+                    value={editAsignaturaId}
                     onChange={(e) => {
-                      setEditNombre(e.target.value);
-                      if (erroresEdicion.nombre) setErroresEdicion({ ...erroresEdicion, nombre: undefined });
+                      const nuevaAsignaturaId = e.target.value;
+                      const asignaturaSeleccionada = catalogo.find(a => a.id.toString() === nuevaAsignaturaId);
+
+                      setEditAsignaturaId(nuevaAsignaturaId);
+                      setEditNombre(asignaturaSeleccionada?.name || '');
+                      setEditMaestroId('');
+
+                      if (erroresEdicion.asignatura) setErroresEdicion({ ...erroresEdicion, asignatura: undefined });
+                      if (erroresEdicion.maestro) setErroresEdicion({ ...erroresEdicion, maestro: undefined });
                     }}
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium outline-none transition-colors ${erroresEdicion.nombre
-                      ? 'border-red-500 focus:ring-red-500 bg-red-50'
+                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${erroresEdicion.asignatura
+                      ? 'border-red-500 bg-red-50'
                       : 'border-gray-300 focus:ring-blue-500'
                       }`}
-                  />
-                  {erroresEdicion.nombre && (
+                  >
+                    <option value="">Seleccionar...</option>
+                    {catalogo.map((a) => (
+                      <option key={a.id} value={a.id.toString()}>
+                        {a.materiaCode + ' - ' + a.name}
+                      </option>
+                    ))}
+                  </select>
+                  {erroresEdicion.asignatura && (
                     <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
                       <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
-                      <span>{erroresEdicion.nombre}</span>
+                      <span>{erroresEdicion.asignatura}</span>
                     </div>
                   )}
                 </div>
@@ -699,6 +775,71 @@ export default function SailAdminDashboard() {
                       <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
                         <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
                         <span>{erroresEdicion.lab}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Maestro</label>
+                    <select
+                      value={editMaestroId}
+                      disabled={!editAsignaturaId || cargandoMaestrosEdicion || maestrosEdicion.length === 0}
+                      onChange={(e) => {
+                        setEditMaestroId(e.target.value);
+                        if (erroresEdicion.maestro) setErroresEdicion({ ...erroresEdicion, maestro: undefined });
+                      }}
+                      className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed ${erroresEdicion.maestro
+                        ? 'border-red-500 bg-red-50'
+                        : 'border-gray-300 focus:ring-blue-500'
+                        }`}
+                    >
+                      {!editAsignaturaId ? (
+                        <option value="">Primero selecciona una asignatura</option>
+                      ) : cargandoMaestrosEdicion ? (
+                        <option value="">Cargando maestros...</option>
+                      ) : maestrosEdicion.length === 0 ? (
+                        <option value="">No hay maestros asignados</option>
+                      ) : (
+                        <>
+                          <option value="">Seleccionar...</option>
+                          {maestrosEdicion.map((m) => (
+                            <option key={m.id} value={m.id.toString()}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                    {erroresEdicion.maestro && (
+                      <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+                        <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
+                        <span>{erroresEdicion.maestro}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Día</label>
+                    <select
+                      value={editDia}
+                      onChange={(e) => {
+                        setEditDia(e.target.value);
+                        if (erroresEdicion.dia) setErroresEdicion({ ...erroresEdicion, dia: undefined });
+                      }}
+                      className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${erroresEdicion.dia ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:ring-blue-500'
+                        }`}
+                    >
+                      <option value="">Seleccionar...</option>
+                      {mapaDias.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    {erroresEdicion.dia && (
+                      <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+                        <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
+                        <span>{erroresEdicion.dia}</span>
                       </div>
                     )}
                   </div>
@@ -764,45 +905,13 @@ export default function SailAdminDashboard() {
                       erroresEdicion.grupo ? 'border-red-500 focus:ring-red-500 bg-red-50' : 'border-gray-300 focus:ring-blue-500'
                     }`}
                   />
+                  {erroresEdicion.grupo && (
+                    <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+                      <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
+                      <span>{erroresEdicion.grupo}</span>
+                    </div>
+                  )}
                 </div>
-
-                <div className="flex gap-3 mt-1 items-center">
-                  {/* Paleta de colores */}
-                  {PALETA_COLORES.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setEditColor(c.clase)}
-                      className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${editColor === c.clase
-                        ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
-                        : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
-                        }`}
-                      title="Color predefinido"
-                    />
-                  ))}
-
-                  {/* Selector personalizado (Botón Arcoíris) */}
-                  <label
-                    className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${editColor.startsWith('#')
-                      ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
-                      : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
-                      }`}
-                    style={
-                      editColor.startsWith('#')
-                        ? { backgroundColor: editColor } // Si ya eligió uno, mostramos su color personalizado
-                        : { background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' } // Si no arcoíris
-                    }
-                    title="Elegir color personalizado"
-                  >
-                    <input
-                      type="color"
-                      value={editColor.startsWith('#') ? editColor : '#0b6e3f'}
-                      onChange={(e) => setEditColor(e.target.value)}
-                      className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-                    />
-                  </label>
-                </div>
-
               </div>
 
               <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">
