@@ -1,7 +1,7 @@
 "use client";
-import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { AlertCircle } from 'lucide-react';
 
 export default function Login() {
