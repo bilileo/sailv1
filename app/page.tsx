@@ -9,6 +9,7 @@ import { CatalogoClases } from './CatalogoClases';
 import { Alumnos } from './Alumnos';
 import { GestionUsuarios } from './GestionUsuarios';
 import { GestionIncidencias } from './GestionIncidencias';
+import { Reportes } from './Reportes';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
@@ -68,6 +69,7 @@ export default function SailAdminDashboard() {
 
   const [claseSeleccionada, setClaseSeleccionada] = useState<Clase | null>(null);
   const [claseAcciones, setClaseAcciones] = useState<Clase | null>(null);
+  const [claseReporteId, setClaseReporteId] = useState('');
   const [editNombre, setEditNombre] = useState('');
   const [editAsignaturaId, setEditAsignaturaId] = useState('');
   const [editMaestroId, setEditMaestroId] = useState('');
@@ -248,6 +250,13 @@ export default function SailAdminDashboard() {
   const handleEntrarClase = () => {
     if (!claseAcciones) return;
     router.push(`/maestro/dashboard?classId=${encodeURIComponent(claseAcciones.id)}`);
+    setClaseAcciones(null);
+  };
+
+  const handleVerReporte = () => {
+    if (!claseAcciones) return;
+    setClaseReporteId(claseAcciones.id);
+    setActiveTab('Reportes');
     setClaseAcciones(null);
   };
 
@@ -488,7 +497,7 @@ export default function SailAdminDashboard() {
     <div className="min-h-screen bg-gray-50 font-sans">
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
         <div className="flex space-x-8">
-          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Incidencias'].map(t => {
+          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Reportes', 'Incidencias'].map(t => {
             if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
 
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
@@ -680,6 +689,10 @@ export default function SailAdminDashboard() {
 
         {activeTab === 'Administradores' && (
           <GestionUsuarios rolDestino="ADMIN" usuarioActivoId={usuarioActivo?.id} />
+        )}
+
+        {activeTab === 'Reportes' && (
+          <Reportes clases={clases} laboratorios={laboratorios} claseIdInicial={claseReporteId} />
         )}
 
         {activeTab === 'Incidencias' && (
@@ -1027,6 +1040,12 @@ export default function SailAdminDashboard() {
                   className="w-full px-4 py-2 text-sm font-bold text-white bg-green-700 hover:bg-green-800 rounded transition-colors"
                 >
                   Entrar a clase
+                </button>
+                <button
+                  onClick={handleVerReporte}
+                  className="w-full px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                >
+                  Ver Reporte de Asistencia
                 </button>
                 <button
                   onClick={handleCerrarAcciones}
