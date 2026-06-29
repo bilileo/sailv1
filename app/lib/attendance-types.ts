@@ -12,6 +12,7 @@ export interface CatalogoClase {
   name: string;
   materiaCode: string;
   color?: string;
+  semestre: number;
   grupo: string;
 }
 

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Edit2, CheckCircle, AlertTriangle, Plus, UserPlus } from 'lucide-react';
+import { X, Trash2, Edit2, CheckCircle, AlertTriangle, Plus, UserPlus, MoreVertical } from 'lucide-react';
 import { CatalogoClase } from './lib/attendance-types';
 import { toast } from 'sonner';
 
@@ -9,11 +9,27 @@ interface Maestro {
   name: string;
 }
 
+const NOMBRES_SEMESTRES: Record<number, string> = {
+  1: 'Primer Semestre',
+  2: 'Segundo Semestre',
+  3: 'Tercer Semestre',
+  4: 'Cuarto Semestre',
+  5: 'Quinto Semestre',
+  6: 'Sexto Semestre',
+  7: 'Séptimo Semestre',
+  8: 'Octavo Semestre',
+  9: 'Noveno Semestre'
+};
+
+const getNombreSemestre = (num?: number) => {
+  if (!num) return 'Semestre No Asignado';
+  return NOMBRES_SEMESTRES[num] || `Semestre ${num}`;
+};
+
 export function CatalogoClases() {
 
   const [modalAbierto, setModalAbierto] = useState(false);
-
-
+  const [menuActivo, setMenuActivo] = useState<string | null>(null);
   const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
 
   // Estados para el modal de profesores
@@ -29,6 +45,7 @@ export function CatalogoClases() {
   const [nombre, setNombre] = useState('');
   const [materiaCode, setMateriaCode] = useState('');
   const [color, setColor] = useState('bg-blue-600');
+  const [semestre, setSemestre] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [errores, setErrores] = useState<{
     nombre?: string;
@@ -60,11 +77,13 @@ export function CatalogoClases() {
       setNombre(catalogo.name);
       setMateriaCode(catalogo.materiaCode);
       setColor(catalogo.color || 'bg-blue-600');
+      setSemestre(catalogo.semestre || 1); 
     } else {
       setEditId(null);
       setMateriaCode('');
       setNombre('');
       setColor('bg-blue-600');
+      setSemestre(1); 
     }
     setModalAbierto(true);
   };
@@ -137,7 +156,8 @@ export function CatalogoClases() {
           id: editId,
           name: nombre,
           materiaCode: materiaCode,
-          color: color
+          color: color,
+          semestre: semestre
         })
       });
       const data = await res.json();
@@ -259,6 +279,21 @@ export function CatalogoClases() {
     }
   };
 
+const materiasAgrupadas = React.useMemo(() => {
+  return catalogo.reduce((acumulador, materia) => {
+    const sem = materia.semestre || 0; 
+    if (!acumulador[sem]) {
+      acumulador[sem] = [];
+    }
+    acumulador[sem].push(materia);
+    return acumulador;
+  }, {} as Record<number, CatalogoClase[]>);
+}, [catalogo]);
+
+const semestresOrdenados = Object.keys(materiasAgrupadas)
+  .map(Number)
+  .sort((a, b) => a - b);
+
   return (
     <div className="space-y-6">
 
@@ -271,45 +306,108 @@ export function CatalogoClases() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {catalogo.map(item => (
-            <div key={item.id} className="border p-4 rounded bg-white shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="px-4 py-3 text-sm text-gray-600">{item.name}</div>
-                <div className={`w-6 h-6 rounded-full ${!item.color?.startsWith('#') ? item.color : ''}`} style={item.color && item.color.startsWith('#') ? { backgroundColor: item.color } : {}}></div>
+        <div className="space-y-8">
+          {semestresOrdenados.map((numSemestre) => (
+            <div key={numSemestre} className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
+              
+              {/* Título del Semestre */}
+              <div className="bg-gray-100 border-b border-gray-200 px-6 py-3">
+                <h3 className="text-lg font-bold text-[#0b6e3f] uppercase tracking-wider">
+                  {getNombreSemestre(numSemestre)}
+                </h3>
               </div>
 
-              <div className="text-xs text-gray-500 mt-2">Código: {item.materiaCode}</div>
+              {/* Grid de las materias del semestre específico */}
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {materiasAgrupadas[numSemestre].map((item) => (
+                    
+                    /* --- INICIO DE LA NUEVA TARJETA MD3 --- */
+                    <div 
+                      key={item.id} 
+                      className="relative flex flex-col h-full p-5 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                    >
+                      {/* Borde izquierdo de color */}
+                      <div 
+                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${!item.color?.startsWith('#') ? item.color : ''}`} 
+                        style={item.color && item.color.startsWith('#') ? { backgroundColor: item.color } : {}}
+                      />
 
-              <button
-                onClick={() => abrirModalProfesores(item)}
-                className="mt-3 w-full px-3 py-2 text-xs font-bold text-[#0b6e3f] border border-[#0b6e3f] rounded hover:bg-[#0b6e3f] hover:text-white transition-colors flex items-center justify-center gap-2"
-                title="Añadir profesor"
-              >
-                <UserPlus className="w-4 h-4" />
-                Añadir profesor
-              </button>
+                      {/* Encabezado y Menú */}
+                      <div className="flex justify-between items-start mb-2 pl-2">
+                        <div>
+                          <h4 className="text-base font-bold text-gray-900 leading-tight line-clamp-2 pr-2">
+                            {item.name}
+                          </h4>
+                          <span className="text-xs font-mono font-bold text-gray-500 mt-1 inline-block bg-gray-50 px-1.5 py-0.5 rounded">
+                            {item.materiaCode}
+                          </span>
+                        </div>
 
-              <div className="flex gap-1 mt-2">
-                <button
-                  onClick={() => abrirModal(item)}
-                  className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                  title="Editar"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => intentarEliminar(item)}
-                  className={`p-2 rounded transition-colors ${eliminando && catalogoAEliminar?.id === item.id ?
-                    'bg-red-100 text-red-600 cursor-not-allowed' :
-                    'text-red-600 hover:bg-red-100'}`}
-                  title={"Eliminar"}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                        {/* Menú de Tres Puntos (Kebab Menu) */}
+                        <div className="relative">
+                          <button 
+                            onClick={() => setMenuActivo(menuActivo === item.id ? null : item.id)}
+                            className="text-gray-400 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition-colors relative z-20"
+                          >
+                            <MoreVertical className="w-5 h-5" />
+                          </button>
+
+                          {/* Dropdown Desplegable */}
+                          {menuActivo === item.id && (
+                            <>
+                              {/* Overlay invisible para cerrar al hacer clic afuera */}
+                              <div 
+                                className="fixed inset-0 z-20" 
+                                onClick={() => setMenuActivo(null)}
+                              />
+                              
+                              {/* Opciones del menú */}
+                              <div className="absolute right-0 mt-1 w-36 bg-white rounded-md shadow-lg border border-gray-200 z-30 py-1 overflow-hidden">
+                                <button 
+                                  onClick={() => { abrirModal(item); setMenuActivo(null); }} 
+                                  className="w-full px-4 py-2 text-left text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center transition-colors"
+                                >
+                                  <Edit2 className="w-4 h-4 mr-2" /> Editar
+                                </button>
+                                <button 
+                                  onClick={() => { intentarEliminar(item); setMenuActivo(null); }} 
+                                  className="w-full px-4 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 flex items-center transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Espaciador flexible para empujar el botón hacia abajo */}
+                      <div className="flex-grow"></div>
+
+                      {/* Botón Principal (Primary Action) */}
+                      <button
+                        onClick={() => abrirModalProfesores(item)}
+                        className="mt-4 w-full px-4 py-2 text-xs font-bold text-[#0b6e3f] bg-green-50 hover:bg-green-100 rounded-md transition-colors flex items-center justify-center gap-2 active:scale-95"
+                        title="Gestionar profesores"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Gestión Profesores
+                      </button>
+                    </div>
+                    /* --- FIN DE LA NUEVA TARJETA MD3 --- */
+
+                  ))}
+                </div>
               </div>
             </div>
           ))}
+
+          {semestresOrdenados.length === 0 && (
+            <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-sm text-gray-500 font-medium">
+              No hay asignaturas registradas en el catálogo.
+            </div>
+          )}
         </div>
       </div>
 
@@ -347,6 +445,22 @@ export function CatalogoClases() {
                                             ${errores.materiaCode ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'}
                                         `}
                   />
+                </div>
+
+                {/* Selector de Semestre */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Semestre</label>
+                  <select
+                    value={semestre}
+                    onChange={e => setSemestre(parseInt(e.target.value))} 
+                    className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black outline-none focus:ring-[#0b6e3f] transition-colors"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                      <option key={num} value={num}>
+                        {NOMBRES_SEMESTRES[num]}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Validación Nombre */}
