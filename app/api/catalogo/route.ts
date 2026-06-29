@@ -33,7 +33,8 @@ export async function POST(request: Request) {
         {
           name: data.name,
           materiaCode: data.materiaCode,
-          color: data.color || 'bg-blue-600'
+          color: data.color || 'bg-blue-600',
+          semestre: data.semestre || 1
         }
       ]);
 
@@ -59,7 +60,8 @@ export async function PUT(request: Request) {
     const updatePayload: Record<string, unknown> = {
       name: data.name,
       materiaCode: data.materiaCode,
-      color: data.color || 'bg-blue-600'
+      color: data.color || 'bg-blue-600',
+      semestre: data.semestre || 1
     };
 
     const { error } = await supabase
