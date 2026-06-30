@@ -40,6 +40,13 @@ export function CatalogoClases() {
   const [cargandoProfesores, setCargandoProfesores] = useState(false);
   const [guardandoProfesores, setGuardandoProfesores] = useState(false);
 
+  // Estados para el modal de alumnos
+  const [modalAlumnosAbierto, setModalAlumnosAbierto] = useState(false);
+  const [alumnos, setAlumnos] = useState<{ id: string; name: string }[]>([]);
+  const [alumnosSeleccionados, setAlumnosSeleccionados] = useState<string[]>([]);
+  const [cargandoAlumnos, setCargandoAlumnos] = useState(false);
+  const [guardandoAlumnos, setGuardandoAlumnos] = useState(false);
+
   // Estados del formulario y validaciones
   const [editId, setEditId] = useState<string | null>(null);
   const [nombre, setNombre] = useState('');
@@ -256,6 +263,81 @@ export function CatalogoClases() {
     }
   };
 
+  const abrirModalAlumnos = async (catalogo: CatalogoClase) => {
+    setCatalogoSeleccionado(catalogo);
+    setModalAlumnosAbierto(true);
+    setCargandoAlumnos(true);
+
+    try {
+      const [resAlumnos, resCursa] = await Promise.all([
+        fetch('/api/estudiante'),
+        fetch(`/api/cursa?asignaturaId=${catalogo.id}`)
+      ]);
+
+      if (!resAlumnos.ok || !resCursa.ok) {
+        toast.error('Error al cargar alumnos');
+        return;
+      }
+
+      const dataAlumnos = await resAlumnos.json();
+      const dataCursa = await resCursa.json();
+
+      setAlumnos(dataAlumnos);
+      setAlumnosSeleccionados(dataCursa.map((c: any) => c.studentId));
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de red al cargar alumnos');
+    } finally {
+      setCargandoAlumnos(false);
+    }
+  };
+
+  const cerrarModalAlumnos = () => {
+    setModalAlumnosAbierto(false);
+    setCatalogoSeleccionado(null);
+    setAlumnos([]);
+    setAlumnosSeleccionados([]);
+  };
+
+  const toggleAlumno = (alumnoId: string) => {
+    setAlumnosSeleccionados((prev) =>
+      prev.includes(alumnoId)
+        ? prev.filter((id) => id !== alumnoId)
+        : [...prev, alumnoId]
+    );
+  };
+
+  const guardarAlumnos = async () => {
+    if (!catalogoSeleccionado) return;
+
+    setGuardandoAlumnos(true);
+
+    try {
+      const res = await fetch('/api/cursa', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asignaturaId: catalogoSeleccionado.id,
+          studentIds: alumnosSeleccionados
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success('Alumnos actualizados correctamente');
+        cerrarModalAlumnos();
+      } else {
+        toast.error(data.error || 'Error al guardar alumnos');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de red al guardar alumnos');
+    } finally {
+      setGuardandoAlumnos(false);
+    }
+  };
+
   const confirmarEliminacion = async () => {
     if (!catalogoAEliminar) return;
     setEliminando(true);
@@ -393,6 +475,15 @@ const semestresOrdenados = Object.keys(materiasAgrupadas)
                       >
                         <UserPlus className="w-4 h-4" />
                         Gestión Profesores
+                      </button>
+
+                      <button
+                        onClick={() => abrirModalAlumnos(item)}
+                        className="mt-2 w-full px-4 py-2 text-xs font-bold text-[#1a73e8] bg-blue-50 hover:bg-blue-100 rounded-md transition-colors flex items-center justify-center gap-2 active:scale-95"
+                        title="Gestionar alumnos"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Gestión Alumnos
                       </button>
                     </div>
                     /* --- FIN DE LA NUEVA TARJETA MD3 --- */
@@ -618,6 +709,96 @@ const semestresOrdenados = Object.keys(materiasAgrupadas)
                   }`}
               >
                 {guardandoProfesores ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Guardar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL DE ALUMNOS ================= */}
+      {modalAlumnosAbierto && catalogoSeleccionado && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-md shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                <UserPlus className="w-5 h-5 mr-2 text-[#1a73e8]" />
+                Inscribir alumnos
+              </h3>
+              <button
+                onClick={cerrarModalAlumnos}
+                disabled={guardandoAlumnos}
+                className="text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-100 rounded p-3">
+                <p className="text-sm font-bold text-[#1a73e8]">{catalogoSeleccionado.name}</p>
+                <p className="text-xs text-gray-600 mt-1">Código: {catalogoSeleccionado.materiaCode}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Alumnos disponibles
+                </label>
+
+                {cargandoAlumnos ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-5 h-5 border-2 border-[#1a73e8] border-t-transparent rounded-full animate-spin"></div>
+                    <span className="ml-2 text-sm text-gray-600">Cargando alumnos...</span>
+                  </div>
+                ) : alumnos.length === 0 ? (
+                  <div className="text-sm text-gray-500 bg-gray-50 border rounded p-4 text-center">
+                    No hay alumnos registrados.
+                  </div>
+                ) : (
+                  <div className="border rounded max-h-64 overflow-y-auto divide-y">
+                    {alumnos.map((alumno) => (
+                      <label
+                        key={alumno.id}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={alumnosSeleccionados.includes(alumno.id)}
+                          onChange={() => toggleAlumno(alumno.id)}
+                          className="w-4 h-4 accent-[#1a73e8]"
+                        />
+                        <span>{alumno.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 px-6 py-4 border-t flex justify-end space-x-3">
+              <button
+                onClick={cerrarModalAlumnos}
+                disabled={guardandoAlumnos}
+                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarAlumnos}
+                disabled={cargandoAlumnos || guardandoAlumnos}
+                className={`px-4 py-2 text-sm font-bold text-white rounded transition-colors shadow-sm flex items-center justify-center gap-2 ${cargandoAlumnos || guardandoAlumnos ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#1a73e8] hover:bg-blue-800 active:scale-95'
+                  }`}
+              >
+                {guardandoAlumnos ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     Guardando...

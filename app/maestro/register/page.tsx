@@ -14,7 +14,7 @@ export default function StudentRegisterPage() {
   const [error, setError] = useState('');
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [deviceTypes, setDeviceTypes] = useState<Array<{ id: number; name: string }>>([]);
-  
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const codeFromUrl = (searchParams.get('code') ?? '').toUpperCase();
@@ -74,9 +74,9 @@ export default function StudentRegisterPage() {
     if (result.success) {
       sessionStorage.removeItem('registerAccess');
       setSubmitted(true);
-      
+
       setTimeout(() => {
-        router.push('/maestro/join');
+        router.push('/student/dashboard');
       }, 3000);
     } else {
       setError(result.error || 'Ocurrio un error al registrar asistencia.');
@@ -84,7 +84,7 @@ export default function StudentRegisterPage() {
   };
 
   // Evitar renderizados extraños mientras verifica autorización
-  if (isAuthorized === null) return null; 
+  if (isAuthorized === null) return null;
 
   if (submitted) {
     return (
@@ -167,9 +167,9 @@ export default function StudentRegisterPage() {
               className="text-black w-full px-3 py-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#1a73e8] resize-none"
             />
           </div>
-          
+
           {error && <p className="text-sm text-red-600 text-center">{error}</p>}
-          
+
           <button
             type="submit"
             className="w-full bg-[#1a73e8] hover:bg-blue-700 text-white font-medium py-3 px-4 rounded transition-colors shadow-sm mt-4"
