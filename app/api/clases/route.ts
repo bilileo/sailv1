@@ -99,30 +99,43 @@ function generarFechasDeClase(fechaInicio: string, fechaFin: string, dayOfWeek: 
 
 export async function GET(request: Request) {
   try {
-    // `getToken` requires a typed request.
     const token = (await getToken({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       req: request as any,
       secret: process.env.NEXTAUTH_SECRET || "SAIL_Super_Secreto_Servicio_Social_2026!"
     })) as { role?: string, id?: string } | null;
 
     if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-    const { data: periodoActivo } = await supabase
-    .from('Periodo')
-    .select('id')
-    .eq('activo', true)
-    .single() as { data: { id: number } | null };
+    const { searchParams } = new URL(request.url);
+    const urlPeriodoId = searchParams.get('periodoId');
+    const urlSemana = searchParams.get('semana');
 
-    if (!periodoActivo) {
-      return NextResponse.json({ error: 'No hay periodo activo configurado' }, { status: 404 });
+    let finalPeriodoId = urlPeriodoId ? parseInt(urlPeriodoId, 10) : null;
+
+   if (!finalPeriodoId) {
+      const { data: periodoActivo } = await supabase
+        .from('Periodo')
+        .select('id, fechaInicio') 
+        .eq('activo', true)
+        .single();
+      
+      finalPeriodoId = periodoActivo?.id || null;
+    }
+
+    if (!finalPeriodoId) {
+      return NextResponse.json({ error: 'No hay periodo válido configurado' }, { status: 404 });
     }
 
     let query = supabase
       .from('ClassSession')
-      .select('id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupo, asignaturaId, Laboratory(id, name), Asignatura(id, name, color)')
+      .select(`
+        id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupo, asignaturaId, 
+        Laboratory(id, name), 
+        Asignatura(id, name, color),
+        ClassLog(estadoAuditoria, semana)
+      `)
       .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE'])
-      .eq('periodoId', periodoActivo.id);
+      .eq('periodoId', finalPeriodoId);
 
     if (token.role === 'MAESTRO') {
       query = query.eq('teacherId', token.id);
@@ -131,20 +144,37 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) throw error;
 
+    let targetSemana = 1;
+    if (urlSemana) {
+      targetSemana = parseInt(urlSemana, 10);
+    } else {
+      const { data: pData } = await supabase.from('Periodo').select('fechaInicio').eq('id', finalPeriodoId).single();
+      if (pData?.fechaInicio) {
+        const inicio = new Date(pData.fechaInicio + 'T00:00:00');
+        const diffDays = Math.ceil(Math.abs(new Date().getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+        targetSemana = Math.floor(diffDays / 7) + 1;
+      }
+    }
+
     const formattedData = data.map((c) => {
-      const row = c as Record<string, unknown>;
+      const row = c as Record<string, any>;
       const sHour = parseHour(String(row.startTime ?? null));
       const eHour = parseHour(String(row.endTime ?? null));
       if (sHour === null || eHour === null) return null;
 
-      const asignatura = row['Asignatura'] as Record<string, unknown> | undefined;
-      const laboratory = row['Laboratory'] as Record<string, unknown> | undefined;
+      const asignatura = row['Asignatura'];
+      const laboratory = row['Laboratory'];
+      
+      const logsSemana = row['ClassLog'] as any[] | undefined;
+      const logEspecifico = logsSemana?.find(l => l.semana === targetSemana);
+
+      const estadoDinamico = logEspecifico ? logEspecifico.estadoAuditoria : row['status'];
 
       return {
         id: row['id'],
         maestroId: row['teacherId'],
         asignaturaId: row['asignaturaId'],
-        status: row['status'],
+        status: estadoDinamico, 
         nombre: asignatura?.['name'] || 'Sin Asignar',
         grupo: row['grupo'],
         laboratorio: laboratory ? laboratory['name'] : 'Sin Asignar',
