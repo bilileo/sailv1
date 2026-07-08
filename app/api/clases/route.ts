@@ -69,6 +69,34 @@ const resolveAsignaturaId = async (name: string, color?: string | null) => {
   return created?.id;
 };
 
+function generarFechasDeClase(fechaInicio: string, fechaFin: string, dayOfWeek: number) {
+  const fechas = [];
+  let actual = new Date(fechaInicio + 'T00:00:00'); 
+  const limite = new Date(fechaFin + 'T23:59:59');
+  const inicio = new Date(fechaInicio + 'T00:00:00');
+
+  const jsDay = dayOfWeek === 7 ? 0 : dayOfWeek;
+
+  while (actual.getDay() !== jsDay) {
+    actual.setDate(actual.getDate() + 1);
+  }
+
+  while (actual <= limite) {
+    const diffTime = Math.abs(actual.getTime() - inicio.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    const semana = Math.floor(diffDays / 7) + 1;
+
+    fechas.push({
+      fecha: actual.toISOString().split('T')[0], 
+      semana: semana
+    });
+
+    actual.setDate(actual.getDate() + 7);
+  }
+
+  return fechas;
+}
+
 export async function GET(request: Request) {
   try {
     // `getToken` requires a typed request.
@@ -80,10 +108,21 @@ export async function GET(request: Request) {
 
     if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
+    const { data: periodoActivo } = await supabase
+    .from('Periodo')
+    .select('id')
+    .eq('activo', true)
+    .single() as { data: { id: number } | null };
+
+    if (!periodoActivo) {
+      return NextResponse.json({ error: 'No hay periodo activo configurado' }, { status: 404 });
+    }
+
     let query = supabase
       .from('ClassSession')
       .select('id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupo, asignaturaId, Laboratory(id, name), Asignatura(id, name, color)')
-      .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE']);
+      .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE'])
+      .eq('periodoId', periodoActivo.id);
 
     if (token.role === 'MAESTRO') {
       query = query.eq('teacherId', token.id);
@@ -148,6 +187,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No se pudo resolver la asignatura' }, { status: 400 });
     }
 
+    const { data: periodoActivo, error: errorPeriodo } = await supabase
+    .from('Periodo')
+    .select('id')
+    .eq('activo', true)
+    .single();
+
+    if (errorPeriodo || !periodoActivo) {
+      return NextResponse.json({ error: 'Debes tener un periodo activo para crear clases' }, { status: 400 });
+    }
+
     const { error } = await supabase
       .from('ClassSession')
       .insert([{
@@ -158,7 +207,8 @@ export async function POST(request: Request) {
         dayOfWeek: dayOfWeek,
         startTime: startTime,
         endTime: endTime,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        periodoId: periodoActivo.id
       }]);
 
     if (!error && asignaturaId && body.maestroId) {

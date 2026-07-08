@@ -9,6 +9,7 @@ import { CatalogoClases } from './CatalogoClases';
 import { Alumnos } from './Alumnos';
 import { GestionUsuarios } from './GestionUsuarios';
 import { GestionIncidencias } from './GestionIncidencias';
+import { GestionPeriodos } from './GestionPeriodos';
 import { Reportes } from './Reportes';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
@@ -497,7 +498,7 @@ export default function SailAdminDashboard() {
     <div className="min-h-screen bg-gray-50 font-sans">
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
         <div className="flex space-x-8">
-          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Reportes', 'Incidencias'].map(t => {
+          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Reportes', 'Incidencias','Periodos Escolares'].map(t => {
             if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
 
             if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
@@ -702,6 +703,10 @@ export default function SailAdminDashboard() {
             usuarioActivo={usuarioActivo}
             onIncidenciaActualizada={cargarDatosBD}
           />
+        )}
+
+        {activeTab === 'Periodos Escolares' && (
+          <GestionPeriodos />
         )}
       </main>
 
