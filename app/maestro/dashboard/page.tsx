@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, LogOut, Users, X, Clock, QrCode } from 'lucide-react';
-import { getStudents, updateStudentStatus, deleteStudent, updateActiveCode, registerStudent } from './actions';
+import { getStudents, updateStudentStatus, deleteStudent, updateActiveCode, registerStudent, finalizarClaseParaHoy } from './actions';
 import { StudentRow, StudentStatus } from '@/app/lib/attendance-types';
 import { getSession, signOut } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -140,21 +140,12 @@ export default function TeacherDashboard() {
     cargarClase();
   }, [classId, usuarioActivo?.name]);
 
-  const actualizarEstadoClase = React.useCallback(async (nuevoEstado: 'ENDED' | 'ACTIVE') => {
-    if (!claseInfo?.id) return;
-    await fetch('/api/clases', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: claseInfo.id, status: nuevoEstado })
-    });
-    setClaseInfo((prev) => (prev ? { ...prev, status: nuevoEstado } : prev));
-  }, [claseInfo]);
-
-  useEffect(() => {
+useEffect(() => {
     if (!claseInfo) return;
 
     const evaluarFase = async () => {
-      if (claseInfo.status === 'ENDED') {
+
+      if (claseInfo.status === 'ENDED' || claseInfo.status === 'FINALIZADA' || claseInfo.status === 'IMPARTIDA') {
         setFaseClase('ended');
         setClassStatus('finished');
         return;
@@ -171,12 +162,10 @@ export default function TeacherDashboard() {
       }
 
       const hoyDia = hoy.getDay();
+      
       if (diaClase < hoyDia) {
         setFaseClase('ended');
         setClassStatus('finished');
-        if (claseInfo.status !== 'ENDED') {
-          await actualizarEstadoClase('ENDED');
-        }
         return;
       }
 
@@ -199,9 +188,6 @@ export default function TeacherDashboard() {
       if (ahora >= fin) {
         setFaseClase('ended');
         setClassStatus('finished');
-        if (claseInfo.status !== 'ENDED') {
-          await actualizarEstadoClase('ENDED');
-        }
         return;
       }
 
@@ -212,9 +198,8 @@ export default function TeacherDashboard() {
     evaluarFase();
     const interval = setInterval(evaluarFase, 30000);
     return () => clearInterval(interval);
-  }, [claseInfo, actualizarEstadoClase]);
+  }, [claseInfo]);
 
-  // === CARGA INICIAL Y POLLING DE DATOS (TIEMPO REAL SIMULADO) ===
   useEffect(() => {
     const fetchLatestStudents = async () => {
       if (!classId) {
@@ -225,17 +210,13 @@ export default function TeacherDashboard() {
       setStudents(data);
     };
 
-    // 1. Carga inicial
     fetchLatestStudents();
 
-    // 2. Polling: Preguntar a la "base de datos" cada 3 segundos si hay cambios
-    // Solo hacemos polling si la clase está en curso
     let interval: NodeJS.Timeout;
     if (classStatus === 'inProgress') {
       interval = setInterval(fetchLatestStudents, 3000);
     }
 
-    // Limpiamos el intervalo al desmontar o si la clase termina
     return () => {
       if (interval) clearInterval(interval);
     };
@@ -280,7 +261,10 @@ export default function TeacherDashboard() {
   // === MANEJADORES DE EVENTOS (HANDLERS) ===
 
   const finalizeClass = async () => {
-    await actualizarEstadoClase('ENDED');
+    if (!classId) return;
+    
+    await finalizarClaseParaHoy(String(classId));
+    
     setFaseClase('ended');
     setClassStatus('finished');
     setTimeLeft(0);

@@ -282,3 +282,43 @@ export async function registerStudent(
   revalidatePath('/maestro/dashboard'); // Actualiza el panel del maestro automáticamente
   return { success: true };
 }
+
+
+export async function finalizarClaseParaHoy(classId: string) {
+  const hoy = new Date().toISOString().split('T')[0];
+
+  const { data: periodoActivo } = await supabase
+    .from('Periodo')
+    .select('id, fechaInicio')
+    .eq('activo', true)
+    .single();
+
+  if (!periodoActivo) return { success: false, error: 'No hay periodo activo' };
+
+  const inicio = new Date(periodoActivo.fechaInicio + 'T00:00:00');
+  const ahora = new Date();
+  const diffTime = Math.abs(ahora.getTime() - inicio.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const semanaActual = Math.floor(diffDays / 7) + 1;
+
+  const { data: existingLog } = await supabase
+    .from('ClassLog')
+    .select('id')
+    .eq('classSessionId', classId)
+    .eq('semana', semanaActual)
+    .maybeSingle();
+
+  if (existingLog) {
+    await supabase.from('ClassLog').update({ estadoAuditoria: 'FINALIZADA' }).eq('id', existingLog.id);
+  } else {
+    await supabase.from('ClassLog').insert({
+      classSessionId: parseInt(classId),
+      semana: semanaActual,
+      fecha: hoy,
+      estadoAuditoria: 'FINALIZADA',
+      periodoId: periodoActivo.id
+    });
+  }
+
+  return { success: true };
+}

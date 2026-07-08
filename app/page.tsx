@@ -30,6 +30,7 @@ interface Clase {
 }
 interface Laboratorio { id: number; name: string; }
 interface Maestro { id: number; name: string; }
+interface Periodo { id: number; nombre: string; fechaInicio?: string; fechaFin?: string; activo?: boolean }
 
 const HORAS_24 = Array.from({ length: 24 }, (_, i) => `${i}:00- ${i + 1}:00`);
 const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -62,6 +63,9 @@ export default function SailAdminDashboard() {
   const [formModalOpen, setFormModalOpen] = useState(false);
   interface FormInitialValues { horario?: string; dia?: string; laboratorioId?: string }
   const [formInitialValues, setFormInitialValues] = useState<FormInitialValues>();
+  const [periodoFiltro, setPeriodoFiltro] = useState<number | null>(null);
+  const [semanaFiltro, setSemanaFiltro] = useState<number>(1);
+  const [listaPeriodos, setListaPeriodos] = useState<Periodo[]>([]);
 
   const [diaFiltro, setDiaFiltro] = useState(() => {
     const hoy = new Date();
@@ -132,9 +136,6 @@ export default function SailAdminDashboard() {
   const cargarDatosBD = async () => {
     const timestamp = new Date().getTime();
 
-    const resClases = await fetch(`/api/clases?t=${timestamp}`, { cache: 'no-store' });
-    if (resClases.ok) setClases(await resClases.json());
-
     const resLabs = await fetch(`/api/laboratorios?t=${timestamp}`, { cache: 'no-store' });
     if (resLabs.ok) setLaboratorios(await resLabs.json());
 
@@ -143,6 +144,17 @@ export default function SailAdminDashboard() {
 
     const resInc = await fetch(`/api/incidencias?t=${timestamp}`, { cache: 'no-store' });
     if (resInc.ok) setIncidencias(await resInc.json());
+
+    if (!periodoFiltro) return;
+
+    const params = new URLSearchParams({
+        periodoId: periodoFiltro.toString(),
+        semana: semanaFiltro.toString(),
+        t: timestamp.toString()
+    });
+
+    const resClases = await fetch(`/api/clases?${params.toString()}`, { cache: 'no-store' });
+    if (resClases.ok) setClases(await resClases.json());
   };
 
   useEffect(() => {
@@ -151,6 +163,28 @@ export default function SailAdminDashboard() {
       cargarDatosBD();
     }, 5000);
     return () => clearInterval(radar);
+  }, [periodoFiltro, semanaFiltro, diaFiltro]);
+
+useEffect(() => {
+    fetch('/api/periodos')
+      .then(res => res.json())
+      .then(data => {
+        setListaPeriodos(data);
+        const activo = data.find((p: Periodo) => p.activo);
+        
+        if (activo) {
+          setPeriodoFiltro(activo.id);
+          
+          if (activo.fechaInicio) {
+            const inicio = new Date(activo.fechaInicio + 'T00:00:00');
+            const ahora = new Date();
+            const diffDays = Math.ceil(Math.abs(ahora.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+            const semActual = Math.floor(diffDays / 7) + 1;
+            setSemanaFiltro(semActual > 0 ? semActual : 1);
+          }
+        }
+      })
+      .catch(err => console.error("Error cargando periodos:", err));
   }, []);
 
   useEffect(() => {
@@ -417,8 +451,8 @@ export default function SailAdminDashboard() {
     }
 
     const esMantenimiento = encontrada.status === 'MAINTENANCE';
-    const esFinalizada = encontrada.status === 'ENDED';
-    const esActiva = encontrada.status === 'ACTIVE';
+    const esFinalizada = encontrada.status === 'ENDED' || encontrada.status === 'FINALIZADA' || encontrada.status === 'IMPARTIDA';
+    const esActiva = encontrada.status === 'ACTIVE' || encontrada.status === 'PROGRAMADA';
 
     const partes = encontrada.horario.split('-');
     const inicioClase = parseInt(partes[0].trim().split(':')[0]);
@@ -612,27 +646,57 @@ export default function SailAdminDashboard() {
 
             <div className="bg-white rounded-sm border border-gray-200 shadow-sm">
               <div className="flex flex-col md:flex-row md:items-center justify-between px-6 py-4 border-b border-gray-200 gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-800 flex items-center">
-                    <Calendar className="w-5 h-5 mr-2 text-[#0b6e3f]" />
-                    Horario Visual - Laboratorios
-                  </h2>
-                  <p className="text-xs text-gray-500 mt-1">Disponibilidad para: <strong className="text-[#0b6e3f]">{diaFiltro}</strong></p>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-lg font-bold text-gray-800 flex items-center">
+                      <Calendar className="w-5 h-5 mr-2 text-[#0b6e3f]" />
+                      Horario Visual - Laboratorios
+                    </h2>
+
+                    <select 
+                      value={periodoFiltro || ''} 
+                      onChange={(e) => setPeriodoFiltro(Number(e.target.value))}
+                      className="text-sm border-2 border-gray-300 rounded-md px-2 py-1 font-bold bg-white text-gray-700 cursor-pointer hover:border-[#0b6e3f] focus:ring-0 outline-none transition-colors"
+                    >
+                      {listaPeriodos.map(p => (
+                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Disponibilidad para: <strong className="text-[#0b6e3f]">{diaFiltro}</strong>
+                  </p>
                 </div>
 
-                <div className="flex bg-gray-100 p-1 rounded-sm border border-gray-200 overflow-x-auto">
-                  {mapaDias.map(d => (
-                    <button
-                      key={d}
-                      onClick={() => setDiaFiltro(d)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-sm transition-colors whitespace-nowrap ${diaFiltro === d
-                        ? 'bg-[#0b6e3f] text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                <div className="flex items-center gap-3">
+                  <div className="flex bg-gray-100 p-1 rounded-sm border border-gray-200 overflow-x-auto">
+                    {mapaDias.map(d => (
+                      <button
+                        key={d}
+                        onClick={() => setDiaFiltro(d)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-sm transition-colors whitespace-nowrap ${
+                          diaFiltro === d
+                            ? 'bg-[#0b6e3f] text-white shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
                         }`}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-white border-2 border-gray-300 rounded-md px-2 py-1 hover:border-[#0b6e3f] transition-colors shadow-sm">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sem.</span>
+                    <select 
+                      value={semanaFiltro} 
+                      onChange={(e) => setSemanaFiltro(Number(e.target.value))}
+                      className="text-sm font-black text-gray-800 bg-transparent outline-none cursor-pointer appearance-none text-center"
                     >
-                      {d}
-                    </button>
-                  ))}
+                      {Array.from({length: 16}, (_, i) => i + 1).map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -1040,12 +1104,25 @@ export default function SailAdminDashboard() {
                     Editar clase
                   </button>
                 )}
-                <button
-                  onClick={handleEntrarClase}
-                  className="w-full px-4 py-2 text-sm font-bold text-white bg-green-700 hover:bg-green-800 rounded transition-colors"
-                >
-                  Entrar a clase
-                </button>
+                {(() => {
+                  const esClaseTerminada = claseAcciones.status === 'ENDED' || claseAcciones.status === 'FINALIZADA' || claseAcciones.status === 'IMPARTIDA';
+
+                  return esClaseTerminada ? (
+                    <button
+                      disabled
+                      className="w-full px-4 py-2 text-sm font-bold text-white bg-gray-400 cursor-not-allowed rounded transition-colors"
+                    >
+                      Clase finalizada esta semana
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleEntrarClase}
+                      className="w-full px-4 py-2 text-sm font-bold text-white bg-green-700 hover:bg-green-800 rounded transition-colors"
+                    >
+                      Entrar a clase
+                    </button>
+                  );
+                })()}
                 <button
                   onClick={handleVerReporte}
                   className="w-full px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
