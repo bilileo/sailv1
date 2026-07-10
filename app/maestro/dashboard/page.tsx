@@ -61,14 +61,42 @@ export default function TeacherDashboard() {
   const [faseClase, setFaseClase] = useState<'scheduled' | 'inProgress' | 'ended'>('scheduled');
   const [manualOpen, setManualOpen] = useState(false);
   const [manualId, setManualId] = useState('');
-  const [manualName, setManualName] = useState('');
-  const [manualDeviceType, setManualDeviceType] = useState('');
+  const [manualDeviceUseOption, setManualDeviceUseOption] = useState<'propio' | 'prestado' | 'laboratorio'>('propio');
+  const [manualLabDeviceTypeId, setManualLabDeviceTypeId] = useState('');
+  const [manualSeatDeviceTypeId, setManualSeatDeviceTypeId] = useState('none');
   const [manualObservaciones, setManualObservaciones] = useState('');
   const [manualError, setManualError] = useState('');
   const [manualSaving, setManualSaving] = useState(false);
   const [reportModal, setReportModal] = useState<{ studentId: string; status: 'ausente' | 'abandono' } | null>(null);
   const [reportObservaciones, setReportObservaciones] = useState('');
   const [deviceTypes, setDeviceTypes] = useState<Array<{ id: number; name: string }>>([]);
+
+  const labDeviceTypes = deviceTypes.filter((deviceType) => deviceType.id !== 0 && deviceType.id !== 1);
+
+  const getManualDeviceTypeId = () => {
+    if (manualDeviceUseOption === 'propio') return 1;
+    if (manualDeviceUseOption === 'prestado') return 0;
+
+    const parsed = Number(manualLabDeviceTypeId);
+
+    if (Number.isNaN(parsed)) {
+      return null;
+    }
+
+    return parsed;
+  };
+
+  const getManualSeatDeviceTypeId = () => {
+    if (manualSeatDeviceTypeId === 'none') return null;
+
+    const parsed = Number(manualSeatDeviceTypeId);
+
+    if (Number.isNaN(parsed)) {
+      return null;
+    }
+
+    return parsed;
+  };
 
   useEffect(() => {
     getSession().then(session => {
@@ -296,8 +324,9 @@ useEffect(() => {
   const handleManualEntry = () => {
     setManualError('');
     setManualId('');
-    setManualName('');
-    setManualDeviceType('');
+    setManualDeviceUseOption('propio');
+    setManualLabDeviceTypeId('');
+    setManualSeatDeviceTypeId('none');
     setManualObservaciones('');
     setManualOpen(true);
   };
@@ -308,8 +337,12 @@ useEffect(() => {
       setManualError('No se pudo determinar la clase.');
       return;
     }
-    if (!manualId.trim() || !manualName.trim() || !manualDeviceType.trim()) {
-      setManualError('Completa el codigo, nombre y dispositivo en uso.');
+    if (!manualId.trim()) {
+      setManualError('Completa el codigo o matricula del alumno.');
+      return;
+    }
+    if (manualDeviceUseOption === 'laboratorio' && !manualLabDeviceTypeId) {
+      setManualError('Selecciona el dispositivo de laboratorio en uso.');
       return;
     }
     if (!currentCode || currentCode === '------') {
@@ -317,11 +350,19 @@ useEffect(() => {
       return;
     }
 
+    const deviceTypeId = getManualDeviceTypeId();
+
+    if (deviceTypeId === null) {
+      setManualError('Selecciona un tipo de dispositivo valido.');
+      return;
+    }
+
     setManualSaving(true);
     const result = await registerStudent({
       id: manualId.trim(),
-      name: manualName.trim(),
-      deviceType: manualDeviceType.trim(),
+      name: '',
+      deviceTypeId,
+      seatDeviceTypeId: getManualSeatDeviceTypeId(),
       code: currentCode,
       registeredAt: new Date().toISOString(),
       classId: String(classId),
@@ -561,30 +602,87 @@ useEffect(() => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="manualName" className="block text-xs font-semibold text-gray-700 mb-1">
-                    Nombre completo
-                  </label>
-                  <input
-                    id="manualName"
-                    type="text"
-                    value={manualName}
-                    onChange={(e) => setManualName(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="manualDeviceType" className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Dispositivo en uso
                   </label>
+
+                  <div className="grid grid-cols-1 gap-2">
+                    <label className="flex items-center gap-3 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="manualDeviceUseOption"
+                        value="propio"
+                        checked={manualDeviceUseOption === 'propio'}
+                        onChange={() => {
+                          setManualDeviceUseOption('propio');
+                          setManualLabDeviceTypeId('');
+                        }}
+                        className="accent-[#1a73e8]"
+                      />
+                      <span>Propio</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="manualDeviceUseOption"
+                        value="prestado"
+                        checked={manualDeviceUseOption === 'prestado'}
+                        onChange={() => {
+                          setManualDeviceUseOption('prestado');
+                          setManualLabDeviceTypeId('');
+                        }}
+                        className="accent-[#1a73e8]"
+                      />
+                      <span>Prestado</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="manualDeviceUseOption"
+                        value="laboratorio"
+                        checked={manualDeviceUseOption === 'laboratorio'}
+                        onChange={() => setManualDeviceUseOption('laboratorio')}
+                        className="accent-[#1a73e8]"
+                      />
+                      <span>De Laboratorio</span>
+                    </label>
+                  </div>
+
+                  {manualDeviceUseOption === 'laboratorio' && (
+                    <div className="mt-3">
+                      <label htmlFor="manualLabDeviceType" className="block text-xs font-semibold text-gray-700 mb-1">
+                        Selecciona el dispositivo de laboratorio
+                      </label>
+                      <select
+                        id="manualLabDeviceType"
+                        value={manualLabDeviceTypeId}
+                        onChange={(e) => setManualLabDeviceTypeId(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
+                      >
+                        <option value="">Selecciona una opcion</option>
+                        {labDeviceTypes.map(dt => (
+                          <option key={dt.id} value={dt.id.toString()}>{dt.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="manualSeatDeviceType" className="block text-xs font-semibold text-gray-700 mb-1">
+                    ¿Dónde estuvo sentado?
+                  </label>
                   <select
-                    id="manualDeviceType"
-                    value={manualDeviceType}
-                    onChange={(e) => setManualDeviceType(e.target.value)}
+                    id="manualSeatDeviceType"
+                    value={manualSeatDeviceTypeId}
+                    onChange={(e) => setManualSeatDeviceTypeId(e.target.value)}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
                   >
-                    <option value="">Selecciona una opcion</option>
-                    {deviceTypes.map(dt => (
-                      <option key={dt.id} value={dt.name}>{dt.name}</option>
+                    <option value="none">Ninguno</option>
+                    {labDeviceTypes.map(dt => (
+                      <option key={dt.id} value={dt.id.toString()}>{dt.name}</option>
                     ))}
                   </select>
                 </div>

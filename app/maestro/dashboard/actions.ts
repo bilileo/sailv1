@@ -66,7 +66,10 @@ const resolveDeviceTypeId = async (name: string) => {
     .maybeSingle();
 
   if (error) throw error;
-  if (existing?.id) return existing.id;
+
+  if (existing?.id !== undefined && existing?.id !== null) {
+    return existing.id;
+  }
 
   const { data: created, error: insertError } = await supabase
     .from('DeviceType')
@@ -75,7 +78,35 @@ const resolveDeviceTypeId = async (name: string) => {
     .maybeSingle();
 
   if (insertError) throw insertError;
-  return created?.id || null;
+  return created?.id ?? null;
+};
+
+const resolveDeviceTypeIdFromValue = async (deviceTypeId?: number | string | null, deviceTypeName?: string) => {
+  if (deviceTypeId !== undefined && deviceTypeId !== null && deviceTypeId !== '') {
+    const parsed = Number(deviceTypeId);
+
+    if (Number.isNaN(parsed)) {
+      return null;
+    }
+
+    return parsed;
+  }
+
+  return resolveDeviceTypeId(deviceTypeName || 'Propio');
+};
+
+const normalizeSeatDeviceTypeId = (seatDeviceTypeId?: number | string | null) => {
+  if (seatDeviceTypeId === undefined || seatDeviceTypeId === null || seatDeviceTypeId === '') {
+    return null;
+  }
+
+  const parsed = Number(seatDeviceTypeId);
+
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+
+  return parsed;
 };
 
 // Guarda el código dinámico generado por el profesor
@@ -102,11 +133,24 @@ export async function updateActiveCode(labId: string, code: string | null) {
 export async function getStudents(classId: string): Promise<StudentRow[]> {
   const { data, error } = await supabase
     .from('Attendance')
-    .select('id, studentId, status, observaciones, Student ( id, name )')
+    .select('id, studentId, status, observaciones, deviceTypeId, seatDeviceTypeId, Student ( id, name )')
     .eq('classSessionId', classId)
     .order('checkInTime', { ascending: true });
 
   if (error) throw error;
+
+  const { data: deviceTypes, error: deviceTypesError } = await supabase
+    .from('DeviceType')
+    .select('id, name');
+
+  if (deviceTypesError) throw deviceTypesError;
+
+  const deviceTypeMap = new Map(
+    (deviceTypes || []).map((deviceType) => {
+      const item = deviceType as { id: number; name: string };
+      return [item.id, item.name];
+    })
+  );
 
   return (data || []).map((row) => {
     const r = row as {
@@ -114,6 +158,8 @@ export async function getStudents(classId: string): Promise<StudentRow[]> {
       Student: { id: string; name: string } | { id: string; name: string }[] | null;
       status: string;
       observaciones?: string;
+      deviceTypeId?: number | null;
+      seatDeviceTypeId?: number | null;
     };
 
     let studentData: { id: string; name: string } | null = null;
@@ -125,7 +171,11 @@ export async function getStudents(classId: string): Promise<StudentRow[]> {
       id: r.studentId,
       name: studentData?.name || r.studentId,
       status: attendanceToStatus[r.status as AttendanceStatus] || 'normal',
-      observaciones: r.observaciones
+      observaciones: r.observaciones,
+      deviceTypeId: r.deviceTypeId ?? null,
+      deviceType: r.deviceTypeId !== null && r.deviceTypeId !== undefined ? deviceTypeMap.get(r.deviceTypeId) || null : null,
+      seatDeviceTypeId: r.seatDeviceTypeId ?? null,
+      seatDeviceType: r.seatDeviceTypeId !== null && r.seatDeviceTypeId !== undefined ? deviceTypeMap.get(r.seatDeviceTypeId) || null : null
     };
   });
 }
@@ -209,7 +259,17 @@ export async function validateActiveCode(code: string): Promise<string | null> {
 
 // Registra un alumno validando que el código siga siendo correcto
 export async function registerStudent(
-  studentData: { id: string; name: string; code: string; registeredAt: string; classId?: string; deviceType?: string; observaciones?: string }
+  studentData: {
+    id: string;
+    name: string;
+    code: string;
+    registeredAt: string;
+    classId?: string;
+    deviceType?: string;
+    deviceTypeId?: number | string | null;
+    seatDeviceTypeId?: number | string | null;
+    observaciones?: string;
+  }
 ) {
   const classId = studentData.classId || (studentData.code ? await validateActiveCode(studentData.code) : null);
   if (!classId) {
@@ -247,12 +307,13 @@ export async function registerStudent(
 
   if (attendanceQueryError) throw attendanceQueryError;
 
-  const deviceTypeName = studentData.deviceType || 'Propio';
-  const deviceTypeId = await resolveDeviceTypeId(deviceTypeName);
+  const deviceTypeId = await resolveDeviceTypeIdFromValue(studentData.deviceTypeId, studentData.deviceType);
 
-  if (!deviceTypeId) {
+  if (deviceTypeId === null || deviceTypeId === undefined) {
     return { success: false, error: 'No se pudo determinar el tipo de dispositivo.' };
   }
+
+  const seatDeviceTypeId = normalizeSeatDeviceTypeId(studentData.seatDeviceTypeId);
 
   const payload: Record<string, unknown> = {
     classSessionId: Number(classId),
@@ -260,6 +321,7 @@ export async function registerStudent(
     studentId: studentData.id,
     registrationCode: studentData.code,
     deviceTypeId,
+    seatDeviceTypeId,
     status: 'PRESENT' as AttendanceStatus,
     ...(studentData.observaciones ? { observaciones: studentData.observaciones } : {})
   };
