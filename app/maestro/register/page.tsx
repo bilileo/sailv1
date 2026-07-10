@@ -5,21 +5,32 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { UserCheck, CheckCircle2 } from 'lucide-react';
 import { registerStudent } from '../dashboard/actions';
 
+interface DeviceType {
+  id: number;
+  name: string;
+}
+
+type DeviceUseOption = 'propio' | 'prestado' | 'laboratorio';
+
 export default function StudentRegisterPage() {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
-  const [deviceType, setDeviceType] = useState('');
+  const [deviceUseOption, setDeviceUseOption] = useState<DeviceUseOption>('propio');
+  const [labDeviceTypeId, setLabDeviceTypeId] = useState('');
+  const [seatDeviceTypeId, setSeatDeviceTypeId] = useState('none');
   const [observaciones, setObservaciones] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const [deviceTypes, setDeviceTypes] = useState<Array<{ id: number; name: string }>>([]);
+  const [deviceTypes, setDeviceTypes] = useState<DeviceType[]>([]);
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const codeFromUrl = (searchParams.get('code') ?? '').toUpperCase();
   const classIdFromUrl = searchParams.get('classId') ?? '';
   const [classId, setClassId] = useState('');
+
+  const labDeviceTypes = deviceTypes.filter((deviceType) => deviceType.id !== 0 && deviceType.id !== 1);
 
   useEffect(() => {
     fetch('/api/device-types')
@@ -50,9 +61,44 @@ export default function StudentRegisterPage() {
     }
   }, [codeFromUrl, classIdFromUrl, router]);
 
+  const getDeviceTypeId = () => {
+    if (deviceUseOption === 'propio') return 1;
+    if (deviceUseOption === 'prestado') return 0;
+
+    const parsed = Number(labDeviceTypeId);
+
+    if (Number.isNaN(parsed)) {
+      return null;
+    }
+
+    return parsed;
+  };
+
+  const getSeatDeviceTypeId = () => {
+    if (seatDeviceTypeId === 'none') return null;
+
+    const parsed = Number(seatDeviceTypeId);
+
+    if (Number.isNaN(parsed)) {
+      return null;
+    }
+
+    return parsed;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id.trim() || !name.trim() || !deviceType.trim()) return;
+    setError('');
+
+    if (!id.trim() || !name.trim()) {
+      setError('Completa tu matrícula y nombre.');
+      return;
+    }
+
+    if (deviceUseOption === 'laboratorio' && !labDeviceTypeId) {
+      setError('Selecciona el dispositivo de laboratorio en uso.');
+      return;
+    }
 
     // Llamamos a la Server Action para escribir en el JSON
     const resolvedClassId = classId || classIdFromUrl;
@@ -61,10 +107,18 @@ export default function StudentRegisterPage() {
       return;
     }
 
+    const deviceTypeId = getDeviceTypeId();
+
+    if (deviceTypeId === null) {
+      setError('Selecciona un tipo de dispositivo válido.');
+      return;
+    }
+
     const result = await registerStudent({
       id: id.trim(),
       name: name.trim(),
-      deviceType: deviceType.trim(),
+      deviceTypeId,
+      seatDeviceTypeId: getSeatDeviceTypeId(),
       code: codeFromUrl,
       registeredAt: new Date().toISOString(),
       classId: resolvedClassId,
@@ -124,6 +178,7 @@ export default function StudentRegisterPage() {
               required
             />
           </div>
+
           <div>
             <label htmlFor="studentName" className="block text-sm font-medium text-gray-700 mb-1">
               Nombre Completo
@@ -137,23 +192,104 @@ export default function StudentRegisterPage() {
               required
             />
           </div>
+
           <div>
-            <label htmlFor="studentDeviceType" className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Dispositivo en uso
             </label>
+
+            <div className="grid grid-cols-1 gap-2">
+              <label className="flex items-center gap-3 rounded border border-gray-300 px-3 py-3 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="deviceUseOption"
+                  value="propio"
+                  checked={deviceUseOption === 'propio'}
+                  onChange={() => {
+                    setDeviceUseOption('propio');
+                    setLabDeviceTypeId('');
+                  }}
+                  className="accent-[#1a73e8]"
+                />
+                <span>Propio</span>
+              </label>
+
+              <label className="flex items-center gap-3 rounded border border-gray-300 px-3 py-3 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="deviceUseOption"
+                  value="prestado"
+                  checked={deviceUseOption === 'prestado'}
+                  onChange={() => {
+                    setDeviceUseOption('prestado');
+                    setLabDeviceTypeId('');
+                  }}
+                  className="accent-[#1a73e8]"
+                />
+                <span>Prestado</span>
+              </label>
+
+              <label className="flex items-center gap-3 rounded border border-gray-300 px-3 py-3 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="deviceUseOption"
+                  value="laboratorio"
+                  checked={deviceUseOption === 'laboratorio'}
+                  onChange={() => setDeviceUseOption('laboratorio')}
+                  className="accent-[#1a73e8]"
+                />
+                <span>De Laboratorio</span>
+              </label>
+            </div>
+
+            {deviceUseOption === 'laboratorio' && (
+              <div className="mt-3">
+                <label htmlFor="labDeviceType" className="block text-xs font-medium text-gray-600 mb-1">
+                  Selecciona el dispositivo de laboratorio
+                </label>
+                <select
+                  id="labDeviceType"
+                  value={labDeviceTypeId}
+                  onChange={(e) => setLabDeviceTypeId(e.target.value)}
+                  className="text-black w-full px-3 py-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
+                  required={deviceUseOption === 'laboratorio'}
+                >
+                  <option value="">Selecciona una opción</option>
+                  {labDeviceTypes.map((deviceType) => (
+                    <option key={deviceType.id} value={deviceType.id.toString()}>
+                      {deviceType.name}
+                    </option>
+                  ))}
+                </select>
+
+                {labDeviceTypes.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    No hay dispositivos de laboratorio registrados.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="seatDeviceType" className="block text-sm font-medium text-gray-700 mb-1">
+              ¿Dónde estuvo sentado?
+            </label>
             <select
-              id="studentDeviceType"
-              value={deviceType}
-              onChange={(e) => setDeviceType(e.target.value)}
+              id="seatDeviceType"
+              value={seatDeviceTypeId}
+              onChange={(e) => setSeatDeviceTypeId(e.target.value)}
               className="text-black w-full px-3 py-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
-              required
             >
-              <option value="">Selecciona una opcion</option>
-              {deviceTypes.map(dt => (
-                <option key={dt.id} value={dt.name}>{dt.name}</option>
+              <option value="none">Ninguno</option>
+              {labDeviceTypes.map((deviceType) => (
+                <option key={deviceType.id} value={deviceType.id.toString()}>
+                  {deviceType.name}
+                </option>
               ))}
             </select>
           </div>
+
           <div>
             <label htmlFor="observaciones" className="block text-sm font-medium text-gray-700 mb-1">
               Observaciones <span className="text-gray-400 text-xs font-normal">(Opcional)</span>

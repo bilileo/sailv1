@@ -5,6 +5,10 @@ export interface StudentRow {
   name: string;
   status: StudentStatus;
   observaciones?: string;
+  deviceTypeId?: number | null;
+  deviceType?: string | null;
+  seatDeviceTypeId?: number | null;
+  seatDeviceType?: string | null;
 }
 
 export interface CatalogoClase {
@@ -21,6 +25,11 @@ export interface Alumno {
   nombre: string;
   matricula: string;
   correo?: string;
+}
+
+export interface DeviceType {
+  id: number;
+  name: string;
 }
 
 export interface NuevaClase {
