@@ -23,7 +23,7 @@ export default function StudentDashboard() {
   useEffect(() => {
     const sessionData = sessionStorage.getItem('studentSession');
     if (!sessionData) {
-      router.push('/maestro/login');
+      router.push('/student/login');
       return;
     }
 
@@ -42,7 +42,7 @@ export default function StudentDashboard() {
           setLoading(false);
         });
     } catch (e) {
-      router.push('/maestro/login');
+      router.push('/student/login');
     }
   }, [router]);
 
@@ -91,7 +91,7 @@ export default function StudentDashboard() {
           <button
             onClick={() => {
               sessionStorage.removeItem('studentSession');
-              router.push('/maestro/login');
+              router.push('/student/login');
             }}
             className="text-red-500 hover:text-red-700 flex items-center space-x-1"
           >
@@ -104,7 +104,7 @@ export default function StudentDashboard() {
       <main className="max-w-6xl mx-auto p-6 mt-4">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Mi Asistencia</h1>
-          <Link href="/maestro/join" className="bg-[#1a73e8] hover:bg-blue-700 text-white font-medium py-2 px-4 rounded shadow-sm flex items-center space-x-2 transition-colors">
+          <Link href="/student/join" className="bg-[#1a73e8] hover:bg-blue-700 text-white font-medium py-2 px-4 rounded shadow-sm flex items-center space-x-2 transition-colors">
             <LogIn className="w-4 h-4" />
             <span>Unirse a clase (Código)</span>
           </Link>

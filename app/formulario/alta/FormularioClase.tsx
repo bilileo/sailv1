@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { Plus, AlertCircle, CheckCircle, X } from 'lucide-react';
-import { NuevaClase } from './lib/attendance-types';
+import { NuevaClase } from '../../lib/attendance-types';
 import { toast } from 'sonner';
 
 interface Laboratorio { id: number; name: string; }

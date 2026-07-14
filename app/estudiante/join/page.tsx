@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { KeyRound, ArrowRight } from 'lucide-react';
-import { validateActiveCode } from '../dashboard/actions'; // Ajusta la ruta si moviste actions.ts
+import { validateActiveCode } from '../../maestro/dashboard/actions'; // Ajusta la ruta si moviste actions.ts
 
 export default function JoinClassPage() {
   const [code, setCode] = useState('');
@@ -14,7 +14,7 @@ export default function JoinClassPage() {
   useEffect(() => {
     const session = sessionStorage.getItem('studentSession');
     if (!session) {
-      router.replace('/maestro/login');
+      router.replace('/student/login');
     }
   }, [router]);
 
@@ -41,8 +41,8 @@ export default function JoinClassPage() {
     // Guardamos en sesión solo para pasar la validación a la siguiente pantalla
     sessionStorage.setItem('registerAccess', JSON.stringify({ code: normalizedCode, classId }));
     setError('');
-   
-    router.push(`/maestro/register?code=${normalizedCode}&classId=${encodeURIComponent(classId)}`); 
+
+    router.push(`/student/register?code=${normalizedCode}&classId=${encodeURIComponent(classId)}`);
   };
 
   return (

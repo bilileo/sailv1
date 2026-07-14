@@ -89,12 +89,12 @@ sailv1/
 │   │   ├── db.ts
 │   │   └── supabase.ts
 │   ├── maestro/             # Rutas exclusivas para docentes
+│   │   └── dashboard/
+│   ├── student/             # Rutas exclusivas para alumnos
 │   │   ├── dashboard/
 │   │   ├── join/
 │   │   ├── login/
 │   │   └── register/
-│   ├── student/             # Rutas exclusivas para alumnos
-│   │   └── dashboard/
 │   ├── login/               # Inicio de sesión general
 │   ├── Alumnos.tsx          # Componentes de UI principales
 │   ├── CatalogoClases.tsx
@@ -125,13 +125,16 @@ sailv1/
 * **`app/api/auth/[...nextauth]/route.ts`**: Archivo central para la configuración de NextAuth, el cual maneja la sesión y autenticación de los usuarios del sistema.
 
 
-* **`app/lib/supabase.ts` y `app/lib/db.ts**`: Establecen y exportan la conexión a la base de datos y la instancia del cliente de Supabase para ser consumidos por el resto de la aplicación.
+* **`app/lib/supabase.ts` y `app/lib/db.ts`**: Establecen y exportan la conexión a la base de datos y la instancia del cliente de Supabase para ser consumidos por el resto de la aplicación.
 
 
 * **`app/lib/attendance-types.ts`**: Define las interfaces y tipos de TypeScript específicos para estandarizar el manejo de datos de asistencia en la aplicación.
 
 
-* **`app/maestro/` y `app/student/**`: Separan la interfaz de usuario dependiendo del rol; incluyen sus propias rutas para los paneles de control (`dashboard`), así como el registro o unión a clases (`register`, `join`).
+* **`app/maestro/`**: Invoca el `dashboard` de visualización de clases para los maestros.
+
+
+* **`app/student/`**: Separan la interfaz de los estudiantes de la interfaz del personal acádemico; incluye sus propias rutas para los paneles de control (`dashboard`), así como el registro o unión a clases (`register`, `join`) y su propio login separado del personal acádemico (`login`).
 
 
 * **Componentes raíz (`app/Alumnos.tsx`, `app/CatalogoClases.tsx`, `app/FormularioClase.tsx`, etc.)**: Son las vistas e interfaces principales donde el administrador o docente interactúa con las distintas entidades del sistema.
