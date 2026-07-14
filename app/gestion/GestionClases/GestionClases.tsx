@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { X, Trash2, Edit2, CheckCircle, AlertTriangle, Plus, UserPlus, MoreVertical } from 'lucide-react';
-import { CatalogoClase } from './lib/attendance-types';
+import { CatalogoClase } from '../../lib/attendance-types';
 import { toast } from 'sonner';
 
 interface Maestro {
@@ -84,13 +84,13 @@ export function CatalogoClases() {
       setNombre(catalogo.name);
       setMateriaCode(catalogo.materiaCode);
       setColor(catalogo.color || 'bg-blue-600');
-      setSemestre(catalogo.semestre || 1); 
+      setSemestre(catalogo.semestre || 1);
     } else {
       setEditId(null);
       setMateriaCode('');
       setNombre('');
       setColor('bg-blue-600');
-      setSemestre(1); 
+      setSemestre(1);
     }
     setModalAbierto(true);
   };
@@ -363,7 +363,7 @@ export function CatalogoClases() {
 
 const materiasAgrupadas = React.useMemo(() => {
   return catalogo.reduce((acumulador, materia) => {
-    const sem = materia.semestre || 0; 
+    const sem = materia.semestre || 0;
     if (!acumulador[sem]) {
       acumulador[sem] = [];
     }
@@ -391,7 +391,7 @@ const semestresOrdenados = Object.keys(materiasAgrupadas)
         <div className="space-y-8">
           {semestresOrdenados.map((numSemestre) => (
             <div key={numSemestre} className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
-              
+
               {/* Título del Semestre */}
               <div className="bg-gray-100 border-b border-gray-200 px-6 py-3">
                 <h3 className="text-lg font-bold text-[#0b6e3f] uppercase tracking-wider">
@@ -403,15 +403,15 @@ const semestresOrdenados = Object.keys(materiasAgrupadas)
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {materiasAgrupadas[numSemestre].map((item) => (
-                    
+
                     /* --- INICIO DE LA NUEVA TARJETA MD3 --- */
-                    <div 
-                      key={item.id} 
+                    <div
+                      key={item.id}
                       className="relative flex flex-col h-full p-5 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                     >
                       {/* Borde izquierdo de color */}
-                      <div 
-                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${!item.color?.startsWith('#') ? item.color : ''}`} 
+                      <div
+                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${!item.color?.startsWith('#') ? item.color : ''}`}
                         style={item.color && item.color.startsWith('#') ? { backgroundColor: item.color } : {}}
                       />
 
@@ -428,7 +428,7 @@ const semestresOrdenados = Object.keys(materiasAgrupadas)
 
                         {/* Menú de Tres Puntos (Kebab Menu) */}
                         <div className="relative">
-                          <button 
+                          <button
                             onClick={() => setMenuActivo(menuActivo === item.id ? null : item.id)}
                             className="text-gray-400 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition-colors relative z-20"
                           >
@@ -439,21 +439,21 @@ const semestresOrdenados = Object.keys(materiasAgrupadas)
                           {menuActivo === item.id && (
                             <>
                               {/* Overlay invisible para cerrar al hacer clic afuera */}
-                              <div 
-                                className="fixed inset-0 z-20" 
+                              <div
+                                className="fixed inset-0 z-20"
                                 onClick={() => setMenuActivo(null)}
                               />
-                              
+
                               {/* Opciones del menú */}
                               <div className="absolute right-0 mt-1 w-36 bg-white rounded-md shadow-lg border border-gray-200 z-30 py-1 overflow-hidden">
-                                <button 
-                                  onClick={() => { abrirModal(item); setMenuActivo(null); }} 
+                                <button
+                                  onClick={() => { abrirModal(item); setMenuActivo(null); }}
                                   className="w-full px-4 py-2 text-left text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center transition-colors"
                                 >
                                   <Edit2 className="w-4 h-4 mr-2" /> Editar
                                 </button>
-                                <button 
-                                  onClick={() => { intentarEliminar(item); setMenuActivo(null); }} 
+                                <button
+                                  onClick={() => { intentarEliminar(item); setMenuActivo(null); }}
                                   className="w-full px-4 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 flex items-center transition-colors"
                                 >
                                   <Trash2 className="w-4 h-4 mr-2" /> Eliminar
@@ -543,7 +543,7 @@ const semestresOrdenados = Object.keys(materiasAgrupadas)
                   <label className="block text-sm font-bold text-gray-700 mb-1">Semestre</label>
                   <select
                     value={semestre}
-                    onChange={e => setSemestre(parseInt(e.target.value))} 
+                    onChange={e => setSemestre(parseInt(e.target.value))}
                     className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black outline-none focus:ring-[#0b6e3f] transition-colors"
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (

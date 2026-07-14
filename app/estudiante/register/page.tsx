@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UserCheck, CheckCircle2 } from 'lucide-react';
-import { registerStudent } from '../dashboard/actions';
+import { registerStudent } from '../../maestro/dashboard/actions';
 
 interface DeviceType {
   id: number;
@@ -44,7 +44,7 @@ export default function StudentRegisterPage() {
     const rawAccess = sessionStorage.getItem('registerAccess');
     const rawStudent = sessionStorage.getItem('studentSession');
     if (!rawAccess || !codeFromUrl || !rawStudent) {
-      router.replace('/maestro/join');
+      router.replace('/student/join');
       return;
     }
 
@@ -57,7 +57,7 @@ export default function StudentRegisterPage() {
       if (student?.name) setName(student.name);
       setIsAuthorized(true);
     } catch {
-      router.replace('/maestro/join');
+      router.replace('/student/join');
     }
   }, [codeFromUrl, classIdFromUrl, router]);
 

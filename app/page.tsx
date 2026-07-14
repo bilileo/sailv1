@@ -3,14 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
-import { FormularioClase } from './FormularioClase';
+import { FormularioClase } from './formulario/alta/FormularioClase';
 import { CatalogoClase } from './lib/attendance-types';
-import { CatalogoClases } from './CatalogoClases';
-import { Alumnos } from './Alumnos';
-import { GestionUsuarios } from './GestionUsuarios';
-import { GestionIncidencias } from './GestionIncidencias';
-import { GestionPeriodos } from './GestionPeriodos';
-import { Reportes } from './Reportes';
+import { CatalogoClases } from './gestion/GestionClases/GestionClases';
+import { Alumnos } from './gestion/GestionAlumnos/GestionAlumnos';
+import { GestionUsuarios } from './gestion/GestionPersonal/GestionUsuarios';
+import { GestionIncidencias } from './gestion/GestionIncidencias/GestionIncidencias';
+import { GestionPeriodos } from './gestion/GestionPeriodos/GestionPeriodos';
+import { Reportes } from './gestion/GestionReportes/Reportes';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
@@ -171,10 +171,10 @@ useEffect(() => {
       .then(data => {
         setListaPeriodos(data);
         const activo = data.find((p: Periodo) => p.activo);
-        
+
         if (activo) {
           setPeriodoFiltro(activo.id);
-          
+
           if (activo.fechaInicio) {
             const inicio = new Date(activo.fechaInicio + 'T00:00:00');
             const ahora = new Date();
@@ -653,8 +653,8 @@ useEffect(() => {
                       Horario Visual - Laboratorios
                     </h2>
 
-                    <select 
-                      value={periodoFiltro || ''} 
+                    <select
+                      value={periodoFiltro || ''}
                       onChange={(e) => setPeriodoFiltro(Number(e.target.value))}
                       className="text-sm border-2 border-gray-300 rounded-md px-2 py-1 font-bold bg-white text-gray-700 cursor-pointer hover:border-[#0b6e3f] focus:ring-0 outline-none transition-colors"
                     >
@@ -687,8 +687,8 @@ useEffect(() => {
 
                   <div className="flex items-center gap-2 bg-white border-2 border-gray-300 rounded-md px-2 py-1 hover:border-[#0b6e3f] transition-colors shadow-sm">
                     <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sem.</span>
-                    <select 
-                      value={semanaFiltro} 
+                    <select
+                      value={semanaFiltro}
                       onChange={(e) => setSemanaFiltro(Number(e.target.value))}
                       className="text-sm font-black text-gray-800 bg-transparent outline-none cursor-pointer appearance-none text-center"
                     >
