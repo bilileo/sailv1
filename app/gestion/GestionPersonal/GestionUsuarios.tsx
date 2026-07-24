@@ -21,6 +21,7 @@ export function GestionUsuarios({ rolDestino, usuarioActivoId }: { rolDestino: s
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [usuarioAEliminar, setUsuarioAEliminar] = useState<Usuario | null>(null);
   const [eliminando, setEliminando] = useState(false);
+  const [terminoBusqueda, setTerminoBusqueda] = useState('');
 
   const cargarUsuarios = React.useCallback(async () => {
     const res = await fetch(`/api/usuarios?role=${rolDestino}`);
@@ -133,6 +134,15 @@ export function GestionUsuarios({ rolDestino, usuarioActivoId }: { rolDestino: s
     }
   };
 
+
+  const usuariosFiltrados = usuarios.filter((usuario) => {
+    const termino = terminoBusqueda.toLowerCase().trim();
+    if (!termino) return true;
+
+    return [usuario.name, usuario.email, usuario.role]
+      .some((valor) => valor?.toLowerCase().includes(termino));
+  });
+
   return (
     <div className="bg-white rounded-sm border border-gray-200 shadow-sm p-6 relative">
       <div className="flex justify-between items-center mb-6">
@@ -145,6 +155,16 @@ export function GestionUsuarios({ rolDestino, usuarioActivoId }: { rolDestino: s
         </button>
       </div>
 
+      <div className="mb-4">
+        <input
+          type="text"
+          value={terminoBusqueda}
+          onChange={(e) => setTerminoBusqueda(e.target.value)}
+          placeholder={`Buscar ${rolDestino.toLowerCase()} por nombre o correo...`}
+          className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black outline-none focus:ring-[#0b6e3f] transition-colors"
+        />
+      </div>
+
       <table className="w-full text-left border-collapse">
         <thead className="bg-gray-100 border-b border-gray-200">
           <tr>
@@ -154,7 +174,7 @@ export function GestionUsuarios({ rolDestino, usuarioActivoId }: { rolDestino: s
           </tr>
         </thead>
         <tbody>
-          {usuarios.map(u => (
+          {usuariosFiltrados.map(u => (
             <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
               <td className="px-4 py-3 text-sm text-gray-800 font-medium flex items-center">
                 {u.name}
@@ -188,7 +208,7 @@ export function GestionUsuarios({ rolDestino, usuarioActivoId }: { rolDestino: s
               </td>
             </tr>
           ))}
-          {usuarios.length === 0 && (
+          {usuariosFiltrados.length === 0 && (
             <tr><td colSpan={3} className="text-center py-8 text-gray-500 text-sm">No hay registros encontrados</td></tr>
           )}
         </tbody>

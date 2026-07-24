@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { Plus, X, AlertCircle, Wrench, CheckCircle, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, X, AlertCircle, Wrench, CheckCircle, Edit2, Trash2, AlertTriangle, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function GestionIncidencias({
@@ -16,6 +16,7 @@ export function GestionIncidencias({
 }) {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
 
 
   // Formulario (Sirve para Crear y Editar)
@@ -29,6 +30,25 @@ export function GestionIncidencias({
   const [incidenciaAEliminar, setIncidenciaAEliminar] = useState<{ id?: string } | null>(null);
   const [procesandoAccion, setProcesandoAccion] = useState(false);
   const [respuestaAdmin, setRespuestaAdmin] = useState('');
+
+
+  const incidenciasFiltradas = incidencias.filter((inc) => {
+    const termino = busqueda.trim().toLowerCase();
+
+    if (!termino) return true;
+
+    return [
+      inc.status === 'PENDING' ? 'pendiente' : 'resuelta',
+      inc.message,
+      inc.laboratorio,
+      inc.clase,
+      inc.reportador,
+      inc.respuesta,
+      inc.resolvedBy
+    ]
+      .filter(Boolean)
+      .some((valor) => String(valor).toLowerCase().includes(termino));
+  });
 
   const abrirModalFormulario = (inc?: { id?: string; classSessionId?: string; message?: string }) => {
     setError('');
@@ -134,8 +154,21 @@ export function GestionIncidencias({
         </button>
       </div>
 
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por estado, clase, laboratorio, descripción o reportador..."
+            className="w-full border-2 border-gray-200 rounded-sm pl-10 pr-3 py-2 text-sm text-black outline-none focus:border-yellow-600 transition-colors"
+          />
+        </div>
+      </div>
+
       <div className="space-y-4">
-        {incidencias.map(inc => (
+        {incidenciasFiltradas.map(inc => (
           <div key={inc.id} className={`p-4 border-l-4 rounded-r-md border-y border-r shadow-sm flex flex-col md:flex-row justify-between md:items-start gap-4 ${inc.status === 'PENDING' ? 'border-l-yellow-500 bg-yellow-50/30' : 'border-l-green-500 bg-gray-50'}`}>
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-3">
@@ -199,6 +232,10 @@ export function GestionIncidencias({
         ))}
         {incidencias.length === 0 && (
           <div className="text-center py-8 text-gray-500 text-sm">No hay incidencias registradas.</div>
+        )}
+
+        {incidencias.length > 0 && incidenciasFiltradas.length === 0 && (
+          <div className="text-center py-8 text-gray-500 text-sm">No se encontraron incidencias con esa búsqueda.</div>
         )}
       </div>
 

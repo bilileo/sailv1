@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Calendar, CheckCircle, AlertCircle, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, X, Calendar, CheckCircle, AlertCircle, Edit2, Trash2, AlertTriangle, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Periodo {
@@ -11,10 +11,14 @@ interface Periodo {
   activo: boolean;
 }
 
+type FiltroEstado = 'todos' | 'activo' | 'inactivo';
+
 export function GestionPeriodos() {
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todos');
 
   // Estados de Formulario
   const [editId, setEditId] = useState<number | null>(null);
@@ -119,6 +123,18 @@ export function GestionPeriodos() {
     setMostrarConfirmacion(true);
   };
 
+
+  const periodosFiltrados = periodos.filter((periodo) => {
+    const textoBusqueda = busqueda.toLowerCase().trim();
+    const coincideNombre = periodo.nombre.toLowerCase().includes(textoBusqueda);
+    const coincideEstado =
+      filtroEstado === 'todos' ||
+      (filtroEstado === 'activo' && periodo.activo) ||
+      (filtroEstado === 'inactivo' && !periodo.activo);
+
+    return coincideNombre && coincideEstado;
+  });
+
   const confirmarEliminacion = async () => {
     if (!periodoAEliminar) return;
     setEliminando(true);
@@ -159,8 +175,43 @@ export function GestionPeriodos() {
         </button>
       </div>
 
+
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full lg:max-w-md">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre del periodo..."
+            className="w-full border-2 border-gray-300 rounded-sm pl-9 pr-3 py-2 text-sm text-black outline-none focus:ring-[#0b6e3f]"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {([
+            { valor: 'todos', texto: 'Todos' },
+            { valor: 'activo', texto: 'Activo' },
+            { valor: 'inactivo', texto: 'Inactivos' },
+          ] as { valor: FiltroEstado; texto: string }[]).map((opcion) => (
+            <button
+              key={opcion.valor}
+              type="button"
+              onClick={() => setFiltroEstado(opcion.valor)}
+              className={`px-4 py-2 rounded-sm text-xs font-bold border transition-colors ${
+                filtroEstado === opcion.valor
+                  ? 'bg-[#0b6e3f] text-white border-[#0b6e3f]'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
+              }`}
+            >
+              {opcion.texto}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {periodos.map((p) => (
+        {periodosFiltrados.map((p) => (
           <div
             key={p.id}
             className={`p-5 border rounded-lg shadow-sm flex flex-col relative overflow-hidden transition-all ${
@@ -215,9 +266,11 @@ export function GestionPeriodos() {
             </div>
           </div>
         ))}
-        {periodos.length === 0 && (
+        {periodosFiltrados.length === 0 && (
           <div className="col-span-full py-8 text-center text-gray-500 font-medium border-2 border-dashed rounded-lg">
-            No hay periodos registrados. Comienza creando uno nuevo.
+            {periodos.length === 0
+              ? 'No hay periodos registrados. Comienza creando uno nuevo.'
+              : 'No se encontraron periodos con esos filtros.'}
           </div>
         )}
       </div>

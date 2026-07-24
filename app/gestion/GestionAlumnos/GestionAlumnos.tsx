@@ -1,5 +1,5 @@
 "use client";
-import { AlertCircle, AlertTriangle, CheckCircle, Edit2, Plus, Trash2, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, Edit2, Plus, Search, Trash2, X } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 
@@ -11,6 +11,7 @@ export function Alumnos() {
   const [idSeleccionado, setIdSeleccionado] = useState<string | null>(null);
 
   const [alumnos, setAlumnos] = useState<StudentMinimal[]>([]);
+  const [busqueda, setBusqueda] = useState('');
   const [nombre, setNombre] = useState('');
   const [matricula, setMatricula] = useState('');
   const [correo, setCorreo] = useState('');
@@ -38,6 +39,18 @@ export function Alumnos() {
   };
 
   useEffect(() => { cargar(); }, []);
+
+  const alumnosFiltrados = alumnos.filter((alumno) => {
+    const textoBusqueda = busqueda.toLowerCase().trim();
+
+    if (!textoBusqueda) return true;
+
+    return (
+      alumno.id?.toLowerCase().includes(textoBusqueda) ||
+      alumno.name?.toLowerCase().includes(textoBusqueda) ||
+      alumno.email?.toLowerCase().includes(textoBusqueda)
+    );
+  });
 
   const abrirModal = (alumnos?: StudentMinimal) => {
     setErrores({});
@@ -168,6 +181,17 @@ export function Alumnos() {
           </button>
         </div>
 
+        <div className="mb-4 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por matrícula, nombre o correo..."
+            className="w-full border-2 border-gray-300 rounded-sm pl-10 pr-3 py-2 text-sm text-black outline-none focus:ring-[#0b6e3f] transition-colors"
+          />
+        </div>
+
         <table className="w-full text-left border-collapse">
           <thead className="bg-gray-100 border-b border-gray-200">
             <tr>
@@ -178,8 +202,13 @@ export function Alumnos() {
             </tr>
           </thead>
           <tbody>
-            {alumnos.length === 0 && <div className="text-sm text-gray-500">No hay alumnos registrados</div>}
-            {alumnos.map(a => (
+            {alumnos.length === 0 && <tr><td colSpan={4} className="px-4 py-4 text-sm text-gray-500">No hay alumnos registrados</td></tr>}
+            {alumnos.length > 0 && alumnosFiltrados.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-4 text-sm text-gray-500">No se encontraron alumnos con esa búsqueda</td>
+              </tr>
+            )}
+            {alumnosFiltrados.map(a => (
               <tr key={a.id || a.email} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 text-sm text-gray-600">{a.id}</td>
                 <td className="px-4 py-3 text-sm text-gray-600">{a.name}</td>
