@@ -9,7 +9,6 @@ interface Usuario { id: string; name: string; email: string; role: string; }
 export function GestionUsuarios({ rolDestino, usuarioActivoId }: { rolDestino: string, usuarioActivoId?: string }) {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [modalAbierto, setModalAbierto] = useState(false);
-  const [cargando, setCargando] = useState(false);
 
   // Estados del formulario y validaciones
   const [editId, setEditId] = useState<string | null>(null);
@@ -43,66 +42,6 @@ export function GestionUsuarios({ rolDestino, usuarioActivoId }: { rolDestino: s
   const cerrarModal = () => {
     setModalAbierto(false);
     setErrores({});
-  };
-
-  const guardarUsuario = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // === VALIDACIONES ESTILO FormularioClase ===
-    setErrores({});
-    const nuevosErrores: { nombre?: string; email?: string; password?: string } = {};
-
-    if (!nombre.trim()) {
-      nuevosErrores.nombre = 'El nombre es obligatorio';
-    } else if (nombre.trim().length < 3) {
-      nuevosErrores.nombre = 'El nombre debe tener al menos 3 caracteres';
-    }
-
-    if (!email.trim()) {
-      nuevosErrores.email = 'El correo es obligatorio';
-    } else if (!/^\S+@\S+\.\S+$/.test(email)) {
-      nuevosErrores.email = 'Ingresa un correo electrónico válido';
-    }
-
-    // La contraseña es obligatoria si es nuevo usuario. Si está editando, es opcional.
-    if (!editId && !password.trim()) {
-      nuevosErrores.password = 'La contraseña es obligatoria para nuevos usuarios';
-    } else if (password && password.length < 6) {
-      nuevosErrores.password = 'La contraseña debe tener al menos 6 caracteres';
-    }
-
-    if (Object.keys(nuevosErrores).length > 0) {
-      setErrores(nuevosErrores);
-      toast.error('Por favor corrige los errores antes de guardar');
-      return;
-    }
-
-    // === SI PASA VALIDACIÓN, GUARDAMOS ===
-    setCargando(true);
-    const url = '/api/usuarios';
-    const method = editId ? 'PUT' : 'POST';
-    const body = JSON.stringify({ id: editId, name: nombre, email, password, role: rolDestino });
-
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        toast.success(editId ? 'Actualizado correctamente' : 'Creado correctamente');
-        cerrarModal();
-        cargarUsuarios();
-      } else {
-        toast.error(data.error || 'Error al guardar');
-      }
-    } catch (error) {
-      toast.error('Error de red al comunicar con el servidor');
-    } finally {
-      setCargando(false);
-    }
   };
 
   // === LÓGICA DE ELIMINACIÓN CON MODAL ===
