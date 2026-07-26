@@ -58,48 +58,6 @@ export function GestionPeriodos() {
     setModalAbierto(false);
   };
 
-  const guardarPeriodo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nombre.trim() || !fechaInicio || !fechaFin) {
-      setError('Todos los campos son estrictamente obligatorios.');
-      return;
-    }
-
-    if (new Date(fechaInicio) >= new Date(fechaFin)) {
-      setError('La fecha de inicio debe ser anterior a la fecha de finalización.');
-      return;
-    }
-
-    setCargando(true);
-
-    // Si estamos editando, mantenemos su estado 'activo' original
-    const periodoActual = editId ? periodos.find(p => p.id === editId) : null;
-    const bodyPayload = editId
-      ? { id: editId, nombre, fechaInicio, fechaFin, activo: periodoActual?.activo }
-      : { nombre, fechaInicio, fechaFin };
-
-    try {
-      const res = await fetch('/api/periodos', {
-        method: editId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload),
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        toast.success(editId ? 'Periodo actualizado' : 'Periodo creado correctamente');
-        setModalAbierto(false);
-        cargarPeriodos();
-      } else {
-        setError(data.error || 'Error al guardar el periodo');
-      }
-    } catch {
-      toast.error('Error de red');
-    } finally {
-      setCargando(false);
-    }
-  };
-
   const activarPeriodo = async (item: Periodo) => {
     try {
       const res = await fetch('/api/periodos', {

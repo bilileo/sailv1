@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { Plus, X, Calendar, CheckCircle, AlertCircle, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Calendar, AlertCircle, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface PeriodosProps {

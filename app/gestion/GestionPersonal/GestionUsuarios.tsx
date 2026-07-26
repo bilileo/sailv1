@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Edit2, Trash2, Plus, X, AlertCircle, AlertTriangle, CheckCircle, List } from 'lucide-react';
 import { toast } from 'sonner';
+import { FormularioPersonal } from '@/app/formulario/alta/FormularioPersonal';
 
 interface Usuario { id: string; name: string; email: string; role: string; }
 
@@ -196,123 +197,16 @@ export function GestionUsuarios({ rolDestino, usuarioActivoId }: { rolDestino: s
 
       {/* ================= MODAL PRINCIPAL DE EDICIÓN ================= */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-md shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b">
-              <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                <Edit2 className="w-5 h-5 mr-2 text-[#0b6e3f]" />
-                {editId ? 'Editar' : 'Nuevo'} {rolDestino.toLowerCase()}
-              </h3>
-              <button
-                onClick={cerrarModal}
-                className="text-gray-400 hover:text-gray-700 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={guardarUsuario}>
-              <div className="p-6 space-y-4">
-
-                {/* Validación Nombre */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Nombre Completo</label>
-                  <input
-                    type="text"
-                    value={nombre}
-                    onChange={e => {
-                      setNombre(e.target.value);
-                      if (errores.nombre) setErrores({ ...errores, nombre: undefined });
-                    }}
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${errores.nombre ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
-                      }`}
-                  />
-                  {errores.nombre && (
-                    <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-                      <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
-                      <span>{errores.nombre}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Validación Correo */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Correo Electrónico</label>
-                  <input
-                    type="text"
-                    value={email}
-                    onChange={e => {
-                      setEmail(e.target.value);
-                      if (errores.email) setErrores({ ...errores, email: undefined });
-                    }}
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${errores.email ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
-                      }`}
-                  />
-                  {errores.email && (
-                    <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-                      <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
-                      <span>{errores.email}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Validación Contraseña */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">
-                    Contraseña {editId && <span className="text-gray-400 font-normal text-xs">(Opcional, dejar en blanco para no cambiar)</span>}
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => {
-                      setPassword(e.target.value);
-                      if (errores.password) setErrores({ ...errores, password: undefined });
-                    }}
-                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${errores.password ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
-                      }`}
-                  />
-                  {errores.password && (
-                    <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-                      <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
-                      <span>{errores.password}</span>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-
-              {/* Botones */}
-              <div className="bg-gray-50 px-6 py-4 border-t flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={cerrarModal}
-                  disabled={cargando}
-                  className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={cargando}
-                  className={`px-4 py-2 text-sm font-bold text-white rounded transition-colors shadow-sm flex items-center justify-center gap-2 ${cargando ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#0b6e3f] hover:bg-green-800 active:scale-95'
-                    }`}
-                >
-                  {cargando ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-4 h-4" />
-                      Guardar
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <FormularioPersonal
+          cerrarModal={cerrarModal}
+          cargar={cargarUsuarios}
+          editIdProp={editId}
+          nombreProp={nombre}
+          emailProp={email}
+          passwordProp={password}
+          rolDestino={rolDestino}
+          usuarioActivoId={usuarioActivoId}
+        />
       )}
 
       {/* ================= SUB-MODAL DE CONFIRMACIÓN DE ELIMINACIÓN ================= */}
