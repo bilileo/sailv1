@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { BarChart2, BookOpen, User, Download } from 'lucide-react';
+import { BarChart2, BookOpen, User, Download, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface ClaseReporte {
@@ -87,6 +87,25 @@ const generarFechas = (inicio: string, fin: string): string[] => {
 const sanitizarNombreArchivo = (str: string) =>
   str.replace(/[^a-zA-Z0-9_\-áéíóúÁÉÍÓÚñÑ ]/g, '').replace(/\s+/g, '_');
 
+type SearchInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+};
+
+const SearchInput = ({ value, onChange, placeholder }: SearchInputProps) => (
+  <div className="relative w-full">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full border-2 border-gray-300 rounded-sm pl-9 pr-3 py-2 text-sm text-black outline-none focus:ring-[#0b6e3f] focus:border-[#0b6e3f] transition-colors"
+    />
+  </div>
+);
+
 export function Reportes({
   clases,
   laboratorios,
@@ -97,6 +116,9 @@ export function Reportes({
   claseIdInicial?: string;
 }) {
   const [subTab, setSubTab] = useState<'clase' | 'maestro' | 'semana'>('clase');
+  const [busquedaResultadosClase, setBusquedaResultadosClase] = useState('');
+  const [busquedaResultadosMaestro, setBusquedaResultadosMaestro] = useState('');
+  const [busquedaSemana, setBusquedaSemana] = useState('');
 
   // ── Por Clase ──────────────────────────────────────────────────────────────
   const [claseId, setClaseId] = useState('');
@@ -194,9 +216,46 @@ export function Reportes({
   const cornerPromTotal   = numLabs > 0 ? +(granTotal / numLabs).toFixed(1) : 0;
   const cornerPromProm    = numLabs > 0 && numDias > 0 ? +(granTotal / (numLabs * numDias)).toFixed(1) : 0;
 
+  const normalizarTexto = (valor?: string | number | null) =>
+    String(valor ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const coincideBusqueda = (busqueda: string, campos: Array<string | number | null | undefined>) => {
+    const textoBusqueda = normalizarTexto(busqueda.trim());
+    if (!textoBusqueda) return true;
+    return campos.some((campo) => normalizarTexto(campo).includes(textoBusqueda));
+  };
+
+  const filtrarRegistroAsistencia = (busqueda: string, registro: RegistroAsistencia) =>
+    coincideBusqueda(busqueda, [
+      registro.alumno,
+      registro.email,
+      ESTADO[registro.status]?.label,
+      registro.status,
+      formatFecha(registro.checkInTime),
+      registro.deviceType,
+      registro.observaciones,
+      registro.clase,
+      registro.laboratorio,
+    ]);
+
+  const asistenciasClaseFiltradas = asistenciasClase.filter((registro) =>
+    filtrarRegistroAsistencia(busquedaResultadosClase, registro)
+  );
+
+  const asistenciasMaestroFiltradas = asistenciasMaestro.filter((registro) =>
+    filtrarRegistroAsistencia(busquedaResultadosMaestro, registro)
+  );
+
+  const laboratoriosFiltradosSemana = laboratorios.filter(lab =>
+    coincideBusqueda(busquedaSemana, [lab.name, lab.id])
+  );
+
   // Agrupar asistencias del maestro por sesión
   const clasesPorId = Object.fromEntries(clases.map(c => [c.id, c as ClaseReporte]));
-  const gruposAsistenciaMaestro = asistenciasMaestro.reduce<Record<string, RegistroAsistencia[]>>((acc, r) => {
+  const gruposAsistenciaMaestroFiltrados = asistenciasMaestroFiltradas.reduce<Record<string, RegistroAsistencia[]>>((acc, r) => {
     const key = r.classSessionId;
     if (!acc[key]) acc[key] = [];
     acc[key].push(r);
@@ -207,7 +266,7 @@ export function Reportes({
 
   const exportarClase = () => {
     const clase = clases.find(c => c.id === claseId);
-    const filas = asistenciasClase.map(r => ({
+    const filas = asistenciasClaseFiltradas.map(r => ({
       'Alumno': r.alumno || '—',
       'Estado': ESTADO[r.status]?.label || r.status,
       'Fecha de Registro': formatFecha(r.checkInTime),
@@ -227,7 +286,7 @@ export function Reportes({
     const maestro = maestros.find(m => m.id.toString() === maestroId);
     const filas: Record<string, string | number>[] = [];
 
-    for (const [sessionId, registros] of Object.entries(gruposAsistenciaMaestro)) {
+    for (const [sessionId, registros] of Object.entries(gruposAsistenciaMaestroFiltrados)) {
       const clase = clasesPorId[sessionId];
       const claseNombre = clase
         ? `${clase.nombre}${clase.grupo ? ` - Gpo. ${clase.grupo}` : ''} | ${clase.laboratorio} | ${getNombreDia(clase.dayOfWeek)} ${clase.horario}`
@@ -358,11 +417,14 @@ export function Reportes({
         {/* ── Tab: Por Clase ── */}
         {subTab === 'clase' && (
           <div className="space-y-4">
-            <div className="max-w-xl">
+            <div className="max-w-xl space-y-2">
               <label className="block text-sm font-bold text-gray-700 mb-1">Selecciona una clase</label>
               <select
                 value={claseId}
-                onChange={e => setClaseId(e.target.value)}
+                onChange={e => {
+                  setClaseId(e.target.value);
+                  setBusquedaResultadosClase('');
+                }}
                 className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black outline-none"
               >
                 <option value="">-- Seleccionar clase --</option>
@@ -386,12 +448,25 @@ export function Reportes({
             )}
 
             {!cargandoClase && asistenciasClase.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-3">
+                <SearchInput
+                  value={busquedaResultadosClase}
+                  onChange={setBusquedaResultadosClase}
+                  placeholder="Buscar en resultados por alumno, estado, fecha, dispositivo u observaciones..."
+                />
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-500 font-medium">{asistenciasClase.length} registro(s) encontrados</p>
-                  <BtnExportar onClick={exportarClase} />
+                  <p className="text-sm text-gray-500 font-medium">
+                    {asistenciasClaseFiltradas.length} de {asistenciasClase.length} registro(s) encontrados
+                  </p>
+                  <BtnExportar onClick={exportarClase} disabled={asistenciasClaseFiltradas.length === 0} />
                 </div>
-                <TablaAsistencia registros={asistenciasClase} />
+                {asistenciasClaseFiltradas.length > 0 ? (
+                  <TablaAsistencia registros={asistenciasClaseFiltradas} />
+                ) : (
+                  <p className="text-sm text-gray-500 py-4 border border-dashed border-gray-300 rounded-sm text-center">
+                    No hay registros que coincidan con la búsqueda.
+                  </p>
+                )}
               </div>
             )}
 
@@ -406,11 +481,14 @@ export function Reportes({
         {/* ── Tab: Por Maestro ── */}
         {subTab === 'maestro' && (
           <div className="space-y-4">
-            <div className="max-w-xl">
+            <div className="max-w-xl space-y-2">
               <label className="block text-sm font-bold text-gray-700 mb-1">Selecciona un maestro</label>
               <select
                 value={maestroId}
-                onChange={e => setMaestroId(e.target.value)}
+                onChange={e => {
+                  setMaestroId(e.target.value);
+                  setBusquedaResultadosMaestro('');
+                }}
                 className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black outline-none"
               >
                 <option value="">-- Seleccionar maestro --</option>
@@ -431,26 +509,42 @@ export function Reportes({
               <p className="text-sm text-gray-500 py-4">No hay registros de asistencia para este maestro.</p>
             )}
 
-            {!cargandoMaestro && Object.keys(gruposAsistenciaMaestro).length > 0 && (
+            {!cargandoMaestro && asistenciasMaestro.length > 0 && (
               <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-500 font-medium">{asistenciasMaestro.length} registro(s) en total</p>
-                  <BtnExportar onClick={exportarMaestro} />
+                <div className="space-y-3">
+                  <SearchInput
+                    value={busquedaResultadosMaestro}
+                    onChange={setBusquedaResultadosMaestro}
+                    placeholder="Buscar en resultados por alumno, clase, laboratorio, estado, fecha, dispositivo u observaciones..."
+                  />
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-500 font-medium">
+                      {asistenciasMaestroFiltradas.length} de {asistenciasMaestro.length} registro(s) en total
+                    </p>
+                    <BtnExportar onClick={exportarMaestro} disabled={asistenciasMaestroFiltradas.length === 0} />
+                  </div>
                 </div>
-                {Object.entries(gruposAsistenciaMaestro).map(([sessionId, registros]) => {
-                  const clase: ClaseReporte | undefined = clasesPorId[sessionId];
-                  return (
-                    <div key={sessionId} className="border rounded-sm overflow-hidden">
-                      <div className="bg-[#0b6e3f] text-white px-4 py-2 text-sm font-bold">
-                        {clase
-                          ? `${clase.nombre}${clase.grupo ? ` - Gpo. ${clase.grupo}` : ''} | ${clase.laboratorio} | ${getNombreDia(clase.dayOfWeek)} ${clase.horario}`
-                          : `Sesión ${sessionId}`}
-                        <span className="ml-3 text-white/70 font-medium">({registros.length} registros)</span>
+
+                {Object.keys(gruposAsistenciaMaestroFiltrados).length > 0 ? (
+                  Object.entries(gruposAsistenciaMaestroFiltrados).map(([sessionId, registros]) => {
+                    const clase: ClaseReporte | undefined = clasesPorId[sessionId];
+                    return (
+                      <div key={sessionId} className="border rounded-sm overflow-hidden">
+                        <div className="bg-[#0b6e3f] text-white px-4 py-2 text-sm font-bold">
+                          {clase
+                            ? `${clase.nombre}${clase.grupo ? ` - Gpo. ${clase.grupo}` : ''} | ${clase.laboratorio} | ${getNombreDia(clase.dayOfWeek)} ${clase.horario}`
+                            : `Sesión ${sessionId}`}
+                          <span className="ml-3 text-white/70 font-medium">({registros.length} registros)</span>
+                        </div>
+                        <TablaAsistencia registros={registros} />
                       </div>
-                      <TablaAsistencia registros={registros} />
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-gray-500 py-4 border border-dashed border-gray-300 rounded-sm text-center">
+                    No hay registros que coincidan con la búsqueda.
+                  </p>
+                )}
               </div>
             )}
 
@@ -498,6 +592,16 @@ export function Reportes({
                 <BtnExportar onClick={exportarSemana} />
               )}
             </div>
+
+            {semanaConsultada && (
+              <div className="max-w-xl">
+                <SearchInput
+                  value={busquedaSemana}
+                  onChange={setBusquedaSemana}
+                  placeholder="Buscar laboratorio en el reporte semanal..."
+                />
+              </div>
+            )}
 
             {!semanaConsultada && !cargandoSemana && (
               <div className="text-center py-8 text-gray-400 text-sm border border-dashed border-gray-300 rounded-sm">
@@ -547,32 +651,35 @@ export function Reportes({
                       </tr>
                     </thead>
                     <tbody>
-                      {laboratorios.map((lab, labIdx) => (
-                        <tr key={lab.id} className="border-b hover:bg-gray-50">
-                          <td className="px-4 py-3 font-bold text-gray-800 border-r sticky left-0 bg-white">
-                            {lab.name}
-                          </td>
-                          {fechas.map(f => {
-                            const val = conteos[lab.name]?.[f] ?? 0;
-                            return (
-                              <td key={f} className={`px-4 py-3 text-center border-r ${val === 0 ? 'text-gray-300' : 'text-gray-800 font-medium'}`}>
-                                {val}
-                              </td>
-                            );
-                          })}
-                          <td className="px-4 py-3 text-center font-bold text-[#0b6e3f] border-r bg-green-50">
-                            {totalsPorLab[labIdx]}
-                          </td>
-                          <td className="px-4 py-3 text-center font-bold text-blue-700 bg-blue-50">
-                            {promediosPorLab[labIdx]}
-                          </td>
-                        </tr>
-                      ))}
+                      {laboratoriosFiltradosSemana.map((lab) => {
+                        const labIdx = laboratorios.findIndex((item) => item.id === lab.id);
+                        return (
+                          <tr key={lab.id} className="border-b hover:bg-gray-50">
+                            <td className="px-4 py-3 font-bold text-gray-800 border-r sticky left-0 bg-white">
+                              {lab.name}
+                            </td>
+                            {fechas.map(f => {
+                              const val = conteos[lab.name]?.[f] ?? 0;
+                              return (
+                                <td key={f} className={`px-4 py-3 text-center border-r ${val === 0 ? 'text-gray-300' : 'text-gray-800 font-medium'}`}>
+                                  {val}
+                                </td>
+                              );
+                            })}
+                            <td className="px-4 py-3 text-center font-bold text-[#0b6e3f] border-r bg-green-50">
+                              {totalsPorLab[labIdx]}
+                            </td>
+                            <td className="px-4 py-3 text-center font-bold text-blue-700 bg-blue-50">
+                              {promediosPorLab[labIdx]}
+                            </td>
+                          </tr>
+                        );
+                      })}
 
-                      {laboratorios.length === 0 && (
+                      {laboratoriosFiltradosSemana.length === 0 && (
                         <tr>
                           <td colSpan={fechas.length + 3} className="px-4 py-6 text-center text-gray-400 text-sm">
-                            No hay laboratorios registrados.
+                            No hay laboratorios que coincidan con la búsqueda.
                           </td>
                         </tr>
                       )}

@@ -1,6 +1,7 @@
 "use client";
-import React, { useState } from 'react';
-import { Plus, Wrench, CheckCircle, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+
+import React, { useMemo, useState } from 'react';
+import { Plus, X, AlertCircle, Wrench, CheckCircle, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { FormularioIncidencias } from '@/app/formulario/alta/FormularioIncidencias';
 
@@ -8,12 +9,84 @@ interface Incidencias {
   incidencias: Array<{ id: string; status?: string; message?: string; laboratorio?: string; clase?: string; reportador?: string; classSessionId?: string; reportedById?: string; respuesta?: string; resolvedBy?: string }>;
   clases: Array<{ id: string; laboratorio?: string; nombre?: string; maestroId?: string }>;
   usuarioActivo: { id?: string; role?: string; name?: string } | null;
+type Incidencia = {
+  id: string;
+  status?: string;
+  message?: string;
+  laboratorio?: string;
+  clase?: string;
+  reportador?: string;
+  classSessionId?: string;
+  reportedById?: string;
+  respuesta?: string;
+  resolvedBy?: string;
+  createdAt?: string;
+  fecha?: string;
+  reportedAt?: string;
+  profesor?: string;
+  maestro?: string;
+  teacher?: string;
+};
+
+type Clase = {
+  id: string;
+  laboratorio?: string;
+  nombre?: string;
+  maestroId?: string;
+};
+
+type UsuarioActivo = {
+  id?: string;
+  role?: string;
+  name?: string;
+};
+
+type FiltroEstado = 'TODAS' | 'PENDING' | 'RESOLVED';
+
+const obtenerFechaISO = (valor?: string) => {
+  if (!valor) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(valor)) {
+    return valor.slice(0, 10);
+  }
+
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return '';
+
+  return fecha.toISOString().slice(0, 10);
+};
+
+const formatearFecha = (valor?: string) => {
+  const fechaISO = obtenerFechaISO(valor);
+  if (!fechaISO) return '';
+
+  const [anio, mes, dia] = fechaISO.split('-');
+  return `${dia}/${mes}/${anio}`;
+};
+
+const obtenerProfesorIncidencia = (inc: Incidencia) => {
+  return inc.reportador || inc.profesor || inc.maestro || inc.teacher || '';
+};
+
+export function GestionIncidencias({
+  incidencias,
+  clases,
+  usuarioActivo,
+  onIncidenciaActualizada
+}: {
+  incidencias: Incidencia[];
+  clases: Clase[];
+  usuarioActivo: UsuarioActivo | null;
   onIncidenciaActualizada: () => void;
 }
 
 export function GestionIncidencias({ incidencias, clases, usuarioActivo, onIncidenciaActualizada } : Incidencias) {
   const [modalAbierto, setModalAbierto] = useState(false);
 
+  const [filtroLaboratorio, setFiltroLaboratorio] = useState('');
+  const [filtroProfesor, setFiltroProfesor] = useState('');
+  const [filtroFecha, setFiltroFecha] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('TODAS');
 
   // Formulario (Sirve para Crear y Editar)
   const [editId, setEditId] = useState<string | null>(null);
@@ -26,6 +99,71 @@ export function GestionIncidencias({ incidencias, clases, usuarioActivo, onIncid
   const [incidenciaAEliminar, setIncidenciaAEliminar] = useState<{ id?: string } | null>(null);
   const [procesandoAccion, setProcesandoAccion] = useState(false);
   const [respuestaAdmin, setRespuestaAdmin] = useState('');
+
+  const laboratoriosDisponibles = useMemo(() => {
+    return Array.from(
+      new Set(
+        incidencias
+          .map((inc) => inc.laboratorio)
+          .filter((lab): lab is string => Boolean(lab))
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [incidencias]);
+
+  const profesoresDisponibles = useMemo(() => {
+    return Array.from(
+      new Set(
+        incidencias
+          .map((inc) => obtenerProfesorIncidencia(inc))
+          .filter((profesor): profesor is string => Boolean(profesor))
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [incidencias]);
+
+  const hayFiltrosActivos = Boolean(filtroLaboratorio || filtroProfesor || filtroFecha || filtroEstado !== 'TODAS');
+
+  const incidenciasFiltradas = incidencias.filter((inc) => {
+    const statusIncidencia = inc.status === 'RESOLVED' ? 'RESOLVED' : 'PENDING';
+    const profesorIncidencia = obtenerProfesorIncidencia(inc);
+    const fechaIncidencia = obtenerFechaISO(inc.createdAt || inc.fecha || inc.reportedAt);
+
+    const cumpleLaboratorio = !filtroLaboratorio || inc.laboratorio === filtroLaboratorio;
+    const cumpleProfesor = !filtroProfesor || profesorIncidencia === filtroProfesor;
+    const cumpleFecha = !filtroFecha || fechaIncidencia === filtroFecha;
+    const cumpleEstado = filtroEstado === 'TODAS' || statusIncidencia === filtroEstado;
+
+    return cumpleLaboratorio && cumpleProfesor && cumpleFecha && cumpleEstado;
+  });
+
+  const limpiarFiltros = () => {
+    setFiltroLaboratorio('');
+    setFiltroProfesor('');
+    setFiltroFecha('');
+    setFiltroEstado('TODAS');
+  };
+
+  const claseVisibleParaUsuario = (clase: Clase) => {
+    if (usuarioActivo?.role !== 'MAESTRO') return true;
+    return clase.maestroId === usuarioActivo.id;
+  };
+
+  const estiloBotonEstado = (estado: FiltroEstado) => {
+    const activo = filtroEstado === estado;
+
+    if (activo && estado === 'PENDING') {
+      return 'bg-yellow-600 text-white border-yellow-600';
+    }
+
+    if (activo && estado === 'RESOLVED') {
+      return 'bg-green-600 text-white border-green-600';
+    }
+
+    if (activo) {
+      return 'bg-gray-800 text-white border-gray-800';
+    }
+
+    return 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100';
+  };
 
   const abrirModalFormulario = (inc?: { id?: string; classSessionId?: string; message?: string }) => {
     setError('');
@@ -103,71 +241,177 @@ export function GestionIncidencias({ incidencias, clases, usuarioActivo, onIncid
         </button>
       </div>
 
-      <div className="space-y-4">
-        {incidencias.map(inc => (
-          <div key={inc.id} className={`p-4 border-l-4 rounded-r-md border-y border-r shadow-sm flex flex-col md:flex-row justify-between md:items-start gap-4 ${inc.status === 'PENDING' ? 'border-l-yellow-500 bg-yellow-50/30' : 'border-l-green-500 bg-gray-50'}`}>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2 mb-3">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${inc.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                  {inc.status === 'PENDING' ? 'Pendiente' : 'Resuelta'}
-                </span>
-                <span className="text-xs text-gray-500 font-bold">{inc.laboratorio} - {inc.clase}</span>
-              </div>
+      <div className="mb-6 rounded-sm border border-gray-200 bg-gray-50 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wide">
+              Laboratorio
+            </label>
+            <select
+              value={filtroLaboratorio}
+              onChange={(e) => setFiltroLaboratorio(e.target.value)}
+              className="w-full border-2 border-gray-200 rounded-sm px-3 py-2 text-sm text-black outline-none focus:border-yellow-600 bg-white"
+            >
+              <option value="">Todos los laboratorios</option>
+              {laboratoriosDisponibles.map((lab) => (
+                <option key={lab} value={lab}>{lab}</option>
+              ))}
+            </select>
+          </div>
 
-              {/* 1. DESCRIPCIÓN ORIGINAL DEL MAESTRO */}
-              <div className="mb-3">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Descripción del problema</span>
-                <p className="text-sm font-medium text-gray-800 mt-0.5">{inc.message}</p>
-              </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wide">
+              Profesor
+            </label>
+            <select
+              value={filtroProfesor}
+              onChange={(e) => setFiltroProfesor(e.target.value)}
+              className="w-full border-2 border-gray-200 rounded-sm px-3 py-2 text-sm text-black outline-none focus:border-yellow-600 bg-white"
+            >
+              <option value="">Todos los profesores</option>
+              {profesoresDisponibles.map((profesor) => (
+                <option key={profesor} value={profesor}>{profesor}</option>
+              ))}
+            </select>
+          </div>
 
-              {/* 2. RESPUESTA DEL ADMINISTRADOR/AUXILIAR */}
-              {inc.status === 'RESOLVED' && inc.respuesta && (
-                <div className="mt-3 bg-green-100/50 border border-green-200 p-3 rounded-sm text-sm text-green-900">
-                  <span className="font-bold flex items-center gap-1 text-green-700">
-                    Respuesta {inc.resolvedBy ? `de ${inc.resolvedBy}` : ''}:
-                  </span>
-                  <p className="mt-1 font-medium">{inc.respuesta}</p>
-                </div>
-              )}
+          <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wide">
+              Fecha
+            </label>
+            <input
+              type="date"
+              value={filtroFecha}
+              onChange={(e) => setFiltroFecha(e.target.value)}
+              className="w-full border-2 border-gray-200 rounded-sm px-3 py-2 text-sm text-black outline-none focus:border-yellow-600 bg-white"
+            />
+          </div>
 
-              <p className="text-xs text-gray-500 mt-4">Reportado por: {inc.reportador}</p>
-            </div>
-
-            <div className="flex items-center space-x-2 border-t md:border-t-0 pt-3 md:pt-0 mt-auto md:mt-0">
-              {/* Bloqueo por status: Si está resuelta, SOLO el ADMIN la puede editar/borrar. Si está pendiente, Admin/Auxiliar o el Creador. */}
-              {((inc.status === 'RESOLVED' && usuarioActivo?.role === 'ADMIN') ||
-                (inc.status === 'PENDING' && (usuarioActivo?.role !== 'MAESTRO' || inc.reportedById === usuarioActivo?.id))) && (
-                  <>
-                    <button
-                      onClick={() => abrirModalFormulario(inc)}
-                      className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors" title="Editar reporte"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setIncidenciaAEliminar(inc)}
-                      className="p-2 text-red-600 hover:bg-red-100 rounded transition-colors" title="Eliminar registro"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
-
-              {/* Botón de Resolver (Solo Admin o Auxiliar si está pendiente) */}
-              {inc.status === 'PENDING' && usuarioActivo?.role !== 'MAESTRO' && (
-                <button
-                  onClick={() => setIncidenciaAResolver(inc.id)}
-                  className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-full transition-colors active:scale-95 shadow-sm ml-2"
-                  title="Marcar como resuelto"
-                >
-                  <CheckCircle className="w-5 h-5" />
-                </button>
-              )}
+          <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wide">
+              Estado
+            </label>
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                type="button"
+                onClick={() => setFiltroEstado('TODAS')}
+                className={`border px-2 py-2 rounded-sm text-xs font-bold transition-colors ${estiloBotonEstado('TODAS')}`}
+              >
+                Todas
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltroEstado('PENDING')}
+                className={`border px-2 py-2 rounded-sm text-xs font-bold transition-colors ${estiloBotonEstado('PENDING')}`}
+              >
+                Pendientes
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltroEstado('RESOLVED')}
+                className={`border px-2 py-2 rounded-sm text-xs font-bold transition-colors ${estiloBotonEstado('RESOLVED')}`}
+              >
+                Resueltas
+              </button>
             </div>
           </div>
-        ))}
+        </div>
+
+        <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <p className="text-xs text-gray-500 font-medium">
+            Mostrando {incidenciasFiltradas.length} de {incidencias.length} incidencias
+          </p>
+
+          {hayFiltrosActivos && (
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="text-xs font-bold text-gray-600 hover:text-yellow-700 underline self-start sm:self-auto"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {incidenciasFiltradas.map(inc => {
+          const statusIncidencia = inc.status === 'RESOLVED' ? 'RESOLVED' : 'PENDING';
+          const fechaIncidencia = formatearFecha(inc.createdAt || inc.fecha || inc.reportedAt);
+
+          return (
+            <div key={inc.id} className={`p-4 border-l-4 rounded-r-md border-y border-r shadow-sm flex flex-col md:flex-row justify-between md:items-start gap-4 ${statusIncidencia === 'PENDING' ? 'border-l-yellow-500 bg-yellow-50/30' : 'border-l-green-500 bg-gray-50'}`}>
+              <div className="flex-1">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${statusIncidencia === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                    {statusIncidencia === 'PENDING' ? 'Pendiente' : 'Resuelta'}
+                  </span>
+                  <span className="text-xs text-gray-500 font-bold">{inc.laboratorio} - {inc.clase}</span>
+                  {fechaIncidencia && (
+                    <span className="text-xs text-gray-400 font-medium">Fecha: {fechaIncidencia}</span>
+                  )}
+                </div>
+
+                {/* 1. DESCRIPCIÓN ORIGINAL DEL MAESTRO */}
+                <div className="mb-3">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Descripción del problema</span>
+                  <p className="text-sm font-medium text-gray-800 mt-0.5">{inc.message}</p>
+                </div>
+
+                {/* 2. RESPUESTA DEL ADMINISTRADOR/AUXILIAR */}
+                {statusIncidencia === 'RESOLVED' && inc.respuesta && (
+                  <div className="mt-3 bg-green-100/50 border border-green-200 p-3 rounded-sm text-sm text-green-900">
+                    <span className="font-bold flex items-center gap-1 text-green-700">
+                      Respuesta {inc.resolvedBy ? `de ${inc.resolvedBy}` : ''}:
+                    </span>
+                    <p className="mt-1 font-medium">{inc.respuesta}</p>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500 mt-4">Reportado por: {obtenerProfesorIncidencia(inc) || 'Sin registro'}</p>
+              </div>
+
+              <div className="flex items-center space-x-2 border-t md:border-t-0 pt-3 md:pt-0 mt-auto md:mt-0">
+                {/* Bloqueo por status: Si está resuelta, SOLO el ADMIN la puede editar/borrar. Si está pendiente, Admin/Auxiliar o el Creador. */}
+                {((statusIncidencia === 'RESOLVED' && usuarioActivo?.role === 'ADMIN') ||
+                  (statusIncidencia === 'PENDING' && (usuarioActivo?.role !== 'MAESTRO' || inc.reportedById === usuarioActivo?.id))) && (
+                    <>
+                      <button
+                        onClick={() => abrirModalFormulario(inc)}
+                        className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors" title="Editar reporte"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setIncidenciaAEliminar(inc)}
+                        className="p-2 text-red-600 hover:bg-red-100 rounded transition-colors" title="Eliminar registro"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+
+                {/* Botón de Resolver (Solo Admin o Auxiliar si está pendiente) */}
+                {statusIncidencia === 'PENDING' && usuarioActivo?.role !== 'MAESTRO' && (
+                  <button
+                    onClick={() => setIncidenciaAResolver(inc.id)}
+                    className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-full transition-colors active:scale-95 shadow-sm ml-2"
+                    title="Marcar como resuelto"
+                  >
+                    <CheckCircle className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
         {incidencias.length === 0 && (
           <div className="text-center py-8 text-gray-500 text-sm">No hay incidencias registradas.</div>
+        )}
+
+        {incidencias.length > 0 && incidenciasFiltradas.length === 0 && (
+          <div className="text-center py-8 text-gray-500 text-sm">No se encontraron incidencias con esos filtros.</div>
         )}
       </div>
 
@@ -182,6 +426,61 @@ export function GestionIncidencias({ incidencias, clases, usuarioActivo, onIncid
           claseIdProp={claseId}
           mensajeProp={mensaje}
         />
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-md shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                {editId ? <Edit2 className="w-5 h-5 mr-2 text-blue-600" /> : <AlertCircle className="w-5 h-5 mr-2 text-yellow-600" />}
+                {editId ? 'Editar reporte' : 'Reportar Falla'}
+              </h3>
+              <button onClick={() => setModalAbierto(false)} className="text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
+            </div>
+
+            <form onSubmit={guardarIncidencia}>
+              <div className="p-6 space-y-4">
+                {error && (
+                  <div className="flex items-start bg-red-50 text-red-600 p-3 rounded-sm text-xs font-bold mb-2 border border-red-200">
+                    <AlertCircle className="w-4 h-4 mr-1.5 flex-shrink-0" /><span>{error}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Clase afectada</label>
+                  <select
+                    value={claseId}
+                    onChange={e => { setClaseId(e.target.value); if (error) setError(''); }}
+                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${editId ? 'focus:ring-blue-600 border-gray-300' : 'focus:ring-yellow-600 border-gray-300'}`}
+                  >
+                    <option value="">Selecciona la clase actual...</option>
+                    {clases
+                      .filter(claseVisibleParaUsuario)
+                      .map(c => (
+                        <option key={c.id} value={c.id}>{c.laboratorio} - {c.nombre}</option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Descripción del problema</label>
+                  <textarea
+                    rows={4}
+                    value={mensaje}
+                    onChange={e => { setMensaje(e.target.value); if (error) setError(''); }}
+                    className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none resize-none transition-colors ${editId ? 'focus:ring-blue-600 border-gray-300' : 'focus:ring-yellow-600 border-gray-300'}`}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-gray-50 px-6 py-4 border-t flex justify-end space-x-3">
+                <button type="button" onClick={() => setModalAbierto(false)} disabled={cargando} className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded disabled:opacity-50">Cancelar</button>
+                <button type="submit" disabled={cargando} className={`px-4 py-2 text-sm font-bold text-white rounded transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 ${editId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-yellow-600 hover:bg-yellow-700'}`}>
+                  {cargando ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : null}
+                  {cargando ? 'Guardando...' : (editId ? 'Actualizar' : 'Reportar')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* ================= MODAL DE RESOLUCIÓN ================= */}

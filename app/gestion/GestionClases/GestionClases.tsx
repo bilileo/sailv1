@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Edit2, CheckCircle, AlertTriangle, Plus, UserPlus, MoreVertical } from 'lucide-react';
+import { X, Trash2, Edit2, CheckCircle, AlertTriangle, Plus, UserPlus, MoreVertical, Search } from 'lucide-react';
 import { CatalogoClase } from '../../lib/attendance-types';
 import { toast } from 'sonner';
 
@@ -31,6 +31,7 @@ export function CatalogoClases() {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [menuActivo, setMenuActivo] = useState<string | null>(null);
   const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
+  const [busqueda, setBusqueda] = useState('');
 
   // Estados para el modal de profesores
   const [modalProfesoresAbierto, setModalProfesoresAbierto] = useState(false);
@@ -361,29 +362,56 @@ export function CatalogoClases() {
     }
   };
 
-const materiasAgrupadas = React.useMemo(() => {
-  return catalogo.reduce((acumulador, materia) => {
-    const sem = materia.semestre || 0;
-    if (!acumulador[sem]) {
-      acumulador[sem] = [];
-    }
-    acumulador[sem].push(materia);
-    return acumulador;
-  }, {} as Record<number, CatalogoClase[]>);
-}, [catalogo]);
+  const catalogoFiltrado = React.useMemo(() => {
+    const termino = busqueda.trim().toLowerCase();
 
-const semestresOrdenados = Object.keys(materiasAgrupadas)
-  .map(Number)
-  .sort((a, b) => a - b);
+    if (!termino) return catalogo;
+
+    return catalogo.filter((materia) => {
+      const nombreSemestre = getNombreSemestre(materia.semestre).toLowerCase();
+
+      return (
+        materia.name.toLowerCase().includes(termino) ||
+        materia.materiaCode.toLowerCase().includes(termino) ||
+        nombreSemestre.includes(termino) ||
+        String(materia.semestre || '').includes(termino)
+      );
+    });
+  }, [catalogo, busqueda]);
+
+  const materiasAgrupadas = React.useMemo(() => {
+    return catalogoFiltrado.reduce((acumulador, materia) => {
+      const sem = materia.semestre || 0;
+      if (!acumulador[sem]) {
+        acumulador[sem] = [];
+      }
+      acumulador[sem].push(materia);
+      return acumulador;
+    }, {} as Record<number, CatalogoClase[]>);
+  }, [catalogoFiltrado]);
+
+  const semestresOrdenados = Object.keys(materiasAgrupadas)
+    .map(Number)
+    .sort((a, b) => a - b);
 
   return (
     <div className="space-y-6">
 
       <div className="bg-white p-6 border rounded shadow-sm">
-        <div className="flex justify-between items-center">
-          <h3 className="text-xl font-bold mb-6 flex items-center text-[#0b6e3f]">Catálogo de Clases</h3>
-          <div className="flex gap-2">
-            <button onClick={() => abrirModal()} className="bg-[#0b6e3f] text-white px-4 py-2 rounded-sm text-sm font-bold flex items-center hover:bg-green-800 transition-colors shadow-sm active:scale-95">
+        <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+          <h3 className="text-xl font-bold flex items-center text-[#0b6e3f]">Catálogo de Clases</h3>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por asignatura, código o semestre..."
+                className="w-full md:w-80 border border-gray-300 rounded-sm pl-9 pr-3 py-2 text-sm text-black outline-none focus:ring-2 focus:ring-[#0b6e3f]"
+              />
+            </div>
+            <button onClick={() => abrirModal()} className="bg-[#0b6e3f] text-white px-4 py-2 rounded-sm text-sm font-bold flex items-center justify-center hover:bg-green-800 transition-colors shadow-sm active:scale-95">
               <Plus className="w-4 h-4 mr-2" />Agregar clase</button>
           </div>
         </div>
@@ -496,7 +524,7 @@ const semestresOrdenados = Object.keys(materiasAgrupadas)
 
           {semestresOrdenados.length === 0 && (
             <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-sm text-gray-500 font-medium">
-              No hay asignaturas registradas en el catálogo.
+              {busqueda.trim() ? 'No se encontraron asignaturas con esa búsqueda.' : 'No hay asignaturas registradas en el catálogo.'}
             </div>
           )}
         </div>
