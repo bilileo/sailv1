@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, Edit2, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Edit2, Plus, Trash2, Search } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { FormularioAlumnos } from '@/app/formulario/alta/FormularioAlumnos';
