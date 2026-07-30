@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
+import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle, Calendar, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
 import { FormularioClase } from './formulario/alta/FormularioClase';
@@ -57,6 +57,7 @@ export default function SailAdminDashboard() {
   const isMaestro = usuarioActivo?.role === 'MAESTRO';
 
   const [activeTab, setActiveTab] = useState('Inicio');
+  const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
   const [clases, setClases] = useState<Clase[]>([]);
   const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
@@ -528,44 +529,128 @@ useEffect(() => {
     );
   };
 
+
+  const opcionesNavegacion = [
+    { tipo: 'item', titulo: 'Inicio', items: ['Inicio'] },
+    { tipo: 'grupo', titulo: 'Usuarios', items: ['Administradores', 'Maestros', 'Auxiliares', 'Alumnos'] },
+    { tipo: 'grupo', titulo: 'Gestión Académica', items: ['Clases', 'Periodos Escolares'] },
+    { tipo: 'grupo', titulo: 'Seguimiento', items: ['Reportes', 'Incidencias'] }
+  ];
+
+  const usuarioPuedeVerTab = (tab: string) => {
+    if (usuarioActivo?.role === 'MAESTRO') {
+      return tab === 'Inicio' || tab === 'Incidencias';
+    }
+
+    if (usuarioActivo?.role === 'AUXILIAR' && (tab === 'Administradores' || tab === 'Auxiliares')) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const obtenerNotificacionesTab = (tab: string) => {
+    if (tab !== 'Incidencias') return 0;
+
+    return isMaestro
+      ? notificacionesMaestro
+      : incidencias.filter(i => i.status === 'PENDING').length;
+  };
+
+  const seleccionarTab = (tab: string) => {
+    setActiveTab(tab);
+    setMenuAbierto(null);
+
+    if (tab === 'Incidencias' && isMaestro) {
+      setResueltasVistas(misResueltasTotal);
+    }
+  };
+
+  const tabEstaActiva = (items: string[]) => items.includes(activeTab);
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex space-x-8">
-          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Reportes', 'Incidencias','Periodos Escolares'].map(t => {
-            if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
+        <div className="flex items-center gap-4">
+          {opcionesNavegacion.map((grupo) => {
+            const itemsVisibles = grupo.items.filter(usuarioPuedeVerTab);
+            if (itemsVisibles.length === 0) return null;
 
-            if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
+            const grupoActivo = tabEstaActiva(itemsVisibles);
+            const notificacionesGrupo = itemsVisibles.reduce((total, item) => total + obtenerNotificacionesTab(item), 0);
 
-            const notificaciones = t === 'Incidencias'
-              ? (isMaestro
-                ? notificacionesMaestro
-                : incidencias.filter(i => i.status === 'PENDING').length)
-              : 0;
+            if (grupo.tipo === 'item') {
+              const item = itemsVisibles[0];
+              const notificaciones = obtenerNotificacionesTab(item);
+
+              return (
+                <button
+                  key={grupo.titulo}
+                  onClick={() => seleccionarTab(item)}
+                  className={`text-sm font-bold transition-colors flex items-center py-4 -mb-[1px] ${activeTab === item
+                    ? 'text-black border-b-2 border-black'
+                    : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                  {item}
+
+                  {notificaciones > 0 && (
+                    <span className="ml-2 flex items-center justify-center bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                      {notificaciones}
+                    </span>
+                  )}
+                </button>
+              );
+            }
 
             return (
-              <button
-                key={t}
-                onClick={() => {
-                  setActiveTab(t);
-                  if (t === 'Incidencias' && isMaestro) {
-                    setResueltasVistas(misResueltasTotal);
-                  }
-                }}
-                className={`text-sm font-bold transition-colors flex items-center py-4 -mb-[1px] ${activeTab === t
-                  ? 'text-black border-b-2 border-black'
-                  : 'text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                {t}
+              <div key={grupo.titulo} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMenuAbierto(menuAbierto === grupo.titulo ? null : grupo.titulo)}
+                  className={`text-sm font-bold transition-colors flex items-center gap-1 py-4 -mb-[1px] ${grupoActivo
+                    ? 'text-black border-b-2 border-black'
+                    : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                  {grupo.titulo}
+                  <ChevronDown className={`w-4 h-4 transition-transform ${menuAbierto === grupo.titulo ? 'rotate-180' : ''}`} />
 
-                {/* Burbuja contadora de incidencias */}
-                {t === 'Incidencias' && notificaciones > 0 && (
-                  <span className="ml-2 flex items-center justify-center bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
-                    {notificaciones}
-                  </span>
+                  {notificacionesGrupo > 0 && (
+                    <span className="ml-1 flex items-center justify-center bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                      {notificacionesGrupo}
+                    </span>
+                  )}
+                </button>
+
+                {menuAbierto === grupo.titulo && (
+                  <div className="absolute left-0 top-full z-50 min-w-52 bg-white border border-gray-200 rounded-sm shadow-lg py-2">
+                    {itemsVisibles.map((item) => {
+                      const notificaciones = obtenerNotificacionesTab(item);
+
+                      return (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => seleccionarTab(item)}
+                          className={`w-full text-left px-4 py-2 text-sm font-bold flex items-center justify-between gap-3 transition-colors ${activeTab === item
+                            ? 'bg-gray-100 text-black'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`}
+                        >
+                          <span>{item}</span>
+
+                          {notificaciones > 0 && (
+                            <span className="flex items-center justify-center bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                              {notificaciones}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
