@@ -17,7 +17,7 @@ export interface CatalogoClase {
   materiaCode: string;
   color?: string;
   semestre: number;
-  grupo: string;
+  grupo?: string;
 }
 
 export interface Alumno {
@@ -32,12 +32,19 @@ export interface DeviceType {
   name: string;
 }
 
+export interface Grupo {
+  id: number;
+  nombre: string;
+  createdAt?: string;
+}
+
 export interface NuevaClase {
   nombre: string;
   laboratorioId: string;
   maestroId: string;
   dia: string;
   horario: string;
-  duracion: number
-  grupo: string;
+  duracion: number;
+  grupoId: string;
+  grupo?: string;
 }
