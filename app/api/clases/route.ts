@@ -129,9 +129,10 @@ export async function GET(request: Request) {
     let query = supabase
       .from('ClassSession')
       .select(`
-        id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupo, asignaturaId, 
+        id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupo, grupoId, asignaturaId, 
         Laboratory(id, name), 
         Asignatura(id, name, color),
+        Grupo(id, nombre),
         ClassLog(estadoAuditoria, semana)
       `)
       .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE'])
@@ -164,6 +165,7 @@ export async function GET(request: Request) {
 
       const asignatura = row['Asignatura'];
       const laboratory = row['Laboratory'];
+      const grupoRelacion = row['Grupo'];
       
       const logsSemana = row['ClassLog'] as any[] | undefined;
       const logEspecifico = logsSemana?.find(l => l.semana === targetSemana);
@@ -176,7 +178,8 @@ export async function GET(request: Request) {
         asignaturaId: row['asignaturaId'],
         status: estadoDinamico, 
         nombre: asignatura?.['name'] || 'Sin Asignar',
-        grupo: row['grupo'],
+        grupoId: row['grupoId'],
+        grupo: grupoRelacion?.['nombre'] || row['grupo'],
         laboratorio: laboratory ? laboratory['name'] : 'Sin Asignar',
         laboratorioId: laboratory?.['id'] || row['laboratoryId'],
         dayOfWeek: row['dayOfWeek'],
@@ -197,7 +200,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    if (!body?.nombre || !body?.laboratorioId || !body?.maestroId) {
+    if (!body?.nombre || !body?.laboratorioId || !body?.maestroId || !body?.grupoId) {
       return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 });
     }
 
@@ -217,6 +220,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No se pudo resolver la asignatura' }, { status: 400 });
     }
 
+    const grupoId = Number(body.grupoId);
+
+    if (Number.isNaN(grupoId)) {
+      return NextResponse.json({ error: 'Selecciona un grupo válido' }, { status: 400 });
+    }
+
     const { data: periodoActivo, error: errorPeriodo } = await supabase
     .from('Periodo')
     .select('id')
@@ -233,7 +242,8 @@ export async function POST(request: Request) {
         laboratoryId: parseInt(body.laboratorioId, 10),
         teacherId: body.maestroId,
         asignaturaId,
-        grupo: body.grupo || null,
+        grupoId,
+        grupo: null,
         dayOfWeek: dayOfWeek,
         startTime: startTime,
         endTime: endTime,
@@ -273,7 +283,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'ID de sesión no proporcionado' }, { status: 400 });
     }
 
-    if (!body?.laboratorioId || !body?.maestroId || !body?.asignaturaId || !body?.horario || !body?.dia) {
+    if (!body?.laboratorioId || !body?.maestroId || !body?.asignaturaId || !body?.grupoId || !body?.horario || !body?.dia) {
       return NextResponse.json({ error: 'Faltan datos obligatorios para editar la sesión' }, { status: 400 });
     }
 
@@ -289,6 +299,7 @@ export async function PUT(request: Request) {
 
     const asignaturaId = Number(body.asignaturaId);
     const maestroId = Number(body.maestroId);
+    const grupoId = Number(body.grupoId);
 
     if (Number.isNaN(asignaturaId)) {
       return NextResponse.json({ error: 'Selecciona una asignatura válida' }, { status: 400 });
@@ -298,23 +309,21 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Selecciona un maestro válido' }, { status: 400 });
     }
 
+    if (Number.isNaN(grupoId)) {
+      return NextResponse.json({ error: 'Selecciona un grupo válido' }, { status: 400 });
+    }
+
     const updatePayload: any = {
       laboratoryId: parseInt(body.laboratorioId, 10),
       teacherId: maestroId,
       asignaturaId,
+      grupoId,
+      grupo: null,
       dayOfWeek: dayOfWeek,
       startTime: startTime,
       endTime: endTime,
       status: body.status || 'ACTIVE'
     };
-
-    if (body.grupo && body.grupo.trim() !== '') {
-      updatePayload.grupo = body.grupo;
-    } else {
-      if (body.status !== 'MAINTENANCE') {
-        updatePayload.grupo = null;
-      }
-    }
 
     const { error } = await supabase
       .from('ClassSession')

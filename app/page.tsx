@@ -11,6 +11,7 @@ import { GestionUsuarios } from './gestion/GestionPersonal/GestionUsuarios';
 import { GestionIncidencias } from './gestion/GestionIncidencias/GestionIncidencias';
 import { GestionPeriodos } from './gestion/GestionPeriodos/GestionPeriodos';
 import { Reportes } from './gestion/GestionReportes/Reportes';
+import { GestionGrupos } from './gestion/GestionGrupos/GestionGrupos';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
@@ -25,12 +26,14 @@ interface Clase {
   dayOfWeek: number;
   color?: string;
   grupo?: string;
+  grupoId?: string | number | null;
   maestroId?: string | number;
   asignaturaId?: string | number;
 }
 interface Laboratorio { id: number; name: string; }
 interface Maestro { id: number; name: string; }
 interface Periodo { id: number; nombre: string; fechaInicio?: string; fechaFin?: string; activo?: boolean }
+interface Grupo { id: number; nombre: string; createdAt?: string }
 
 const HORAS_24 = Array.from({ length: 24 }, (_, i) => `${i}:00- ${i + 1}:00`);
 const mapaDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -44,7 +47,7 @@ const getNombreDia = (dayOfWeek?: number) => {
 export default function SailAdminDashboard() {
   const router = useRouter();
   const [usuarioActivo, setUsuarioActivo] = useState<{ id: string, name: string, role: string } | null>(null);
-  const [editGrupo, setEditGrupo] = useState('');
+  const [editGrupoId, setEditGrupoId] = useState('');
 
   interface UserSession { id: string; name: string; role: string }
 
@@ -60,6 +63,7 @@ export default function SailAdminDashboard() {
   const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
   const [clases, setClases] = useState<Clase[]>([]);
   const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
   const [formModalOpen, setFormModalOpen] = useState(false);
   interface FormInitialValues { horario?: string; dia?: string; laboratorioId?: string }
@@ -139,6 +143,9 @@ export default function SailAdminDashboard() {
 
     const resLabs = await fetch(`/api/laboratorios?t=${timestamp}`, { cache: 'no-store' });
     if (resLabs.ok) setLaboratorios(await resLabs.json());
+
+    const resGrupos = await fetch(`/api/grupos?t=${timestamp}`, { cache: 'no-store' });
+    if (resGrupos.ok) setGrupos(await resGrupos.json());
 
     const resCatalogo = await fetch(`/api/catalogo?t=${timestamp}`, { cache: 'no-store' });
     if (resCatalogo.ok) setCatalogo(await resCatalogo.json());
@@ -265,7 +272,7 @@ useEffect(() => {
     setEditLab(labId);
     setEditDia(getNombreDia(clase.dayOfWeek));
     setEditStatus(clase.status || 'ACTIVE');
-    setEditGrupo(clase.grupo || '');
+    setEditGrupoId(clase.grupoId?.toString() || '');
 
     const hI = parseInt(clase.horario.split('-')[0]);
     const hF = parseInt(clase.horario.split('-')[1]);
@@ -362,8 +369,8 @@ useEffect(() => {
       nuevosErrores.horario = 'Selecciona un horario válido';
     }
 
-    if (!editGrupo.trim()) {
-      nuevosErrores.grupo = 'El grupo es obligatorio';
+    if (!editGrupoId) {
+      nuevosErrores.grupo = 'Selecciona un grupo válido';
     }
 
     if (Object.keys(nuevosErrores).length > 0) {
@@ -388,7 +395,7 @@ useEffect(() => {
           duracion: editDuracion,
           dia: editDia,
           status: editStatus,
-          grupo: editGrupo
+          grupoId: editGrupoId
         })
       });
 
@@ -533,7 +540,7 @@ useEffect(() => {
   const opcionesNavegacion = [
     { tipo: 'item', titulo: 'Inicio', items: ['Inicio'] },
     { tipo: 'grupo', titulo: 'Usuarios', items: ['Administradores', 'Maestros', 'Auxiliares', 'Alumnos'] },
-    { tipo: 'grupo', titulo: 'Gestión Académica', items: ['Clases', 'Periodos Escolares'] },
+    { tipo: 'grupo', titulo: 'Gestión Académica', items: ['Clases', 'Grupos', 'Periodos Escolares'] },
     { tipo: 'grupo', titulo: 'Seguimiento', items: ['Reportes', 'Incidencias'] }
   ];
 
@@ -825,6 +832,10 @@ useEffect(() => {
           <CatalogoClases />
         )}
 
+        {activeTab === 'Grupos' && (
+          <GestionGrupos onGruposActualizados={cargarDatosBD} />
+        )}
+
         {activeTab === 'Alumnos' && (
           <Alumnos />
         )}
@@ -1061,17 +1072,24 @@ useEffect(() => {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Grupo</label>
-                  <input
-                    type="text"
-                    value={editGrupo}
+                  <select
+                    value={editGrupoId}
                     onChange={(e) => {
-                      setEditGrupo(e.target.value);
+                      setEditGrupoId(e.target.value);
                       if (erroresEdicion.grupo) setErroresEdicion({ ...erroresEdicion, grupo: undefined });
                     }}
                     className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium outline-none transition-colors ${
                       erroresEdicion.grupo ? 'border-red-500 focus:ring-red-500 bg-red-50' : 'border-gray-300 focus:ring-blue-500'
                     }`}
-                  />
+                  >
+                    <option value="">Seleccionar grupo...</option>
+                    {grupos.map((g) => (
+                      <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
+                    ))}
+                  </select>
+                  {grupos.length === 0 && (
+                    <p className="text-xs text-gray-500 mt-1">Primero registra un grupo en la pestaña Grupos.</p>
+                  )}
                   {erroresEdicion.grupo && (
                     <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
                       <AlertCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0 mt-0.5" />
@@ -1233,6 +1251,7 @@ useEffect(() => {
           onClaseCreada={handleCrearClase}
           laboratorios={laboratorios}
           clases={clases}
+          grupos={grupos}
           open={formModalOpen}
           onClose={() => setFormModalOpen(false)}
         />

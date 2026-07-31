@@ -6,13 +6,15 @@ import { toast } from 'sonner';
 
 interface Laboratorio { id: number; name: string; }
 interface Maestro { id: number; name: string; }
-interface Clase { id: string; nombre: string; laboratorio: string; horario: string; dayOfWeek: number; grupo: string; }
+interface Clase { id: string; nombre: string; laboratorio: string; horario: string; dayOfWeek: number; grupo?: string; grupoId?: string | number | null; }
 interface Asignaturas { id: number; name: string; materiaCode: string; color?: string; }
+interface Grupo { id: number; nombre: string; }
 
 interface FormularioClaseProps {
   onClaseCreada: (nuevaClase: NuevaClase) => void;
   laboratorios: Laboratorio[];
   clases: Clase[];
+  grupos: Grupo[];
   open?: boolean;
   onClose?: () => void;
   initialValues?: Partial<{
@@ -23,17 +25,18 @@ interface FormularioClaseProps {
     laboratorioId: string;
     maestroId: string;
     color: string;
+    grupoId: string;
     grupo: string;
   }>;
 }
 
-export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, clases, open, onClose }: FormularioClaseProps) => {
+export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, clases, grupos, open, onClose }: FormularioClaseProps) => {
   const [nombre, setNombre] = useState('');
   const [lab, setLab] = useState(initialValues?.laboratorioId || '');
   const [maestro, setMaestro] = useState('');
   const [dia, setDia] = useState(initialValues?.dia || 'Lunes');
   const [duracion, setDuracion] = useState(initialValues?.duracion || 1);
-  const [grupo, setGrupo] = useState(initialValues?.grupo || '');
+  const [grupoId, setGrupoId] = useState(initialValues?.grupoId || '');
   const [maestros, setMaestros] = useState<Maestro[]>([]);
   const [cargandoMaestros, setCargandoMaestros] = useState(false);
   const [errores, setErrores] = useState<{
@@ -198,7 +201,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
     setErrores({});
     const nuevosErrores: typeof errores = {};
 
-    console.log('Validando clase con datos:', { nombre, lab, maestro, dia, horario, duracion });
+    console.log('Validando clase con datos:', { nombre, lab, maestro, dia, horario, duracion, grupoId });
 
     // Validaciones
     if (!nombre.trim()) {
@@ -219,8 +222,8 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       nuevosErrores.horario = 'Debes seleccionar un bloque horario disponible';
     }
 
-    if (!grupo.trim()) {
-      nuevosErrores.grupo = 'Por favor, ingresa el grupo de la asignatura';
+    if (!grupoId) {
+      nuevosErrores.grupo = 'Por favor, selecciona un grupo';
     }
 
     // Si hay errores, mostrarlos y retornar
@@ -239,7 +242,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       dia,
       horario,
       duracion,
-      grupo
+      grupoId
     };
 
     onClaseCreada(datosClase);
@@ -256,6 +259,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
     setNombre('');
     setMaestro('');
     setMaestros([]);
+    setGrupoId('');
     setErrores({});
     setEnviando(false);
   };
@@ -370,18 +374,24 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
         {/* Grupo */}
         <div className="col-span-1">
           <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
-          <input
-            type="text"
-            placeholder="Ej. 501, A, etc."
-            value={grupo}
+          <select
+            value={grupoId}
             onChange={(e) => {
-              setGrupo(e.target.value);
+              setGrupoId(e.target.value);
               if (errores.grupo) setErrores({ ...errores, grupo: undefined });
             }}
             className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
               errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300'
             }`}
-          />
+          >
+            <option value="">Seleccionar grupo...</option>
+            {grupos.map((g) => (
+              <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
+            ))}
+          </select>
+          {grupos.length === 0 && (
+            <p className="text-xs text-gray-500 mt-1">Primero registra un grupo en la pestaña Grupos.</p>
+          )}
           {errores.grupo && (
             <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
               <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
