@@ -44,7 +44,7 @@ export default function StudentRegisterPage() {
     const rawAccess = sessionStorage.getItem('registerAccess');
     const rawStudent = sessionStorage.getItem('studentSession');
     if (!rawAccess || !codeFromUrl || !rawStudent) {
-      router.replace('/student/join');
+      router.replace('/estudiante/join');
       return;
     }
 
@@ -57,7 +57,7 @@ export default function StudentRegisterPage() {
       if (student?.name) setName(student.name);
       setIsAuthorized(true);
     } catch {
-      router.replace('/student/join');
+      router.replace('/estudiante/join');
     }
   }, [codeFromUrl, classIdFromUrl, router]);
 
@@ -130,7 +130,7 @@ export default function StudentRegisterPage() {
       setSubmitted(true);
 
       setTimeout(() => {
-        router.push('/student/dashboard');
+        router.push('/estudiante/dashboard');
       }, 3000);
     } else {
       setError(result.error || 'Ocurrio un error al registrar asistencia.');
