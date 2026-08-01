@@ -30,7 +30,7 @@ export default function StudentLogin() {
 
     const student = await res.json();
     sessionStorage.setItem('studentSession', JSON.stringify(student));
-    router.push('/student/dashboard');
+    router.push('/estudiante/dashboard');
   };
 
   return (

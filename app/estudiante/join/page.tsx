@@ -14,7 +14,7 @@ export default function JoinClassPage() {
   useEffect(() => {
     const session = sessionStorage.getItem('studentSession');
     if (!session) {
-      router.replace('/student/login');
+      router.replace('/estudiante/login');
     }
   }, [router]);
 
@@ -42,7 +42,7 @@ export default function JoinClassPage() {
     sessionStorage.setItem('registerAccess', JSON.stringify({ code: normalizedCode, classId }));
     setError('');
 
-    router.push(`/student/register?code=${normalizedCode}&classId=${encodeURIComponent(classId)}`);
+    router.push(`/estudiante/register?code=${normalizedCode}&classId=${encodeURIComponent(classId)}`);
   };
 
   return (
