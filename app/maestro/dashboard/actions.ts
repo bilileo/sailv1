@@ -289,13 +289,31 @@ export async function registerStudent(
 
   const { data: classSession, error: classError } = await supabase
     .from('ClassSession')
-    .select('teacherId')
+    .select('teacherId, asignaturaId')
     .eq('id', classId)
     .maybeSingle();
 
   if (classError) throw classError;
   if (!classSession?.teacherId) {
     return { success: false, error: 'No se pudo determinar el maestro de la clase.' };
+  }
+
+  if (classSession.asignaturaId) {
+    const { data: inscripcion, error: inscError } = await supabase
+      .from('Cursa')
+      .select('studentId')
+      .eq('studentId', studentData.id)
+      .eq('asignaturaId', classSession.asignaturaId)
+      .maybeSingle();
+
+    if (inscError) throw inscError;
+
+    if (!inscripcion) {
+      return { 
+        success: false, 
+        error: 'Acceso denegado: No tienes esta materia registrada en tu carga académica.' 
+      };
+    }
   }
 
   const { data: existingAttendance, error: attendanceQueryError } = await supabase

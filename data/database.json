@@ -1,6 +1,9 @@
 {
   "activeCodes": {
-    "1": null,
+    "1": {
+      "code": "K63MBR",
+      "expiresAt": "2026-08-02T00:18:10.087Z"
+    },
     "2": null,
     "3": null,
     "4": {
