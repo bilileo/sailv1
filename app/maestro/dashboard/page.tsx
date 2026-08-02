@@ -438,7 +438,23 @@ useEffect(() => {
               <span className={`${faseClase === 'ended' ? 'bg-red-600' : faseClase === 'inProgress' ? 'bg-[#2e8b57]' : 'bg-gray-600'} text-white px-3 py-1 rounded text-sm font-bold tracking-wide shadow-sm`}>
                 {faseClase === 'scheduled' ? 'Programada' : faseClase === 'inProgress' ? 'En curso' : 'Finalizado'}
               </span>
-              <h1 className="text-2xl font-bold">{claseInfo?.nombre || 'Clase sin seleccionar'}</h1>
+              
+              {(() => {
+                const nombreReal = claseInfo?.nombre || '';
+                const esEvento = nombreReal.toUpperCase().startsWith('EVENTO:');
+                const nombreLimpio = esEvento ? nombreReal.substring(7).trim() : nombreReal;
+
+                return (
+                  <>
+                    {esEvento && (
+                      <span className="bg-purple-600 text-white px-3 py-1 rounded text-sm font-bold tracking-widest uppercase shadow-sm">
+                        Evento Especial
+                      </span>
+                    )}
+                    <h1 className="text-2xl font-bold">{nombreLimpio || 'Clase sin seleccionar'}</h1>
+                  </>
+                );
+              })()}
             </div>
             <div className="text-sm text-gray-600">
               {cargandoClase && <span>Cargando datos de clase...</span>}

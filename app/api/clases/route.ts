@@ -129,7 +129,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from('ClassSession')
       .select(`
-        id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupo, grupoId, asignaturaId, 
+        id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupo, grupoId, asignaturaId, tipoSession,
         Laboratory(id, name), 
         Asignatura(id, name, color),
         Grupo(id, nombre),
@@ -176,6 +176,7 @@ export async function GET(request: Request) {
         id: row['id'],
         maestroId: row['teacherId'],
         asignaturaId: row['asignaturaId'],
+        tipoSession: row['tipoSession'] || 'CLASE',
         status: estadoDinamico, 
         nombre: asignatura?.['name'] || 'Sin Asignar',
         grupoId: row['grupoId'],
@@ -243,6 +244,7 @@ export async function POST(request: Request) {
         teacherId: body.maestroId,
         asignaturaId,
         grupoId,
+        tipoSession: body.tipoSession || 'CLASE',
         grupo: null,
         dayOfWeek: dayOfWeek,
         startTime: startTime,
@@ -318,6 +320,7 @@ export async function PUT(request: Request) {
       teacherId: maestroId,
       asignaturaId,
       grupoId,
+      tipoSession: body.tipoSession || 'CLASE',
       grupo: null,
       dayOfWeek: dayOfWeek,
       startTime: startTime,

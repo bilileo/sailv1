@@ -37,6 +37,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
   const [dia, setDia] = useState(initialValues?.dia || 'Lunes');
   const [duracion, setDuracion] = useState(initialValues?.duracion || 1);
   const [grupoId, setGrupoId] = useState(initialValues?.grupoId || '');
+  const [tipoSession, setTipoSession] = useState('CLASE');
   const [maestros, setMaestros] = useState<Maestro[]>([]);
   const [cargandoMaestros, setCargandoMaestros] = useState(false);
   const [errores, setErrores] = useState<{
@@ -242,6 +243,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       dia,
       horario,
       duracion,
+      tipoSession,
       grupoId
     };
 
@@ -371,33 +373,48 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
           </div>
         </div>
 
-        {/* Grupo */}
-        <div className="col-span-1">
-          <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
-          <select
-            value={grupoId}
-            onChange={(e) => {
-              setGrupoId(e.target.value);
-              if (errores.grupo) setErrores({ ...errores, grupo: undefined });
-            }}
-            className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
-              errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300'
-            }`}
-          >
-            <option value="">Seleccionar grupo...</option>
-            {grupos.map((g) => (
-              <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
-            ))}
-          </select>
-          {grupos.length === 0 && (
-            <p className="text-xs text-gray-500 mt-1">Primero registra un grupo en la pestaña Grupos.</p>
-          )}
-          {errores.grupo && (
-            <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-              <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
-              <span>{errores.grupo}</span>
-            </div>
-          )}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Grupo */}
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
+            <select
+              value={grupoId}
+              onChange={(e) => {
+                setGrupoId(e.target.value);
+                if (errores.grupo) setErrores({ ...errores, grupo: undefined });
+              }}
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
+                errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
+            >
+              <option value="">Seleccionar grupo...</option>
+              {grupos.map((g) => (
+                <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
+              ))}
+            </select>
+            {grupos.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">Primero registra un grupo en la pestaña Grupos.</p>
+            )}
+            {errores.grupo && (
+              <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
+                <span>{errores.grupo}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Tipo de Sesión */}
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">Tipo de Sesión</label>
+            <select
+              value={tipoSession}
+              onChange={(e) => setTipoSession(e.target.value)}
+              className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors focus:border-[#0b6e3f] outline-none"
+            >
+              <option value="CLASE">Clase (Teoría)</option>
+              <option value="LABORATORIO">Laboratorio (Práctica)</option>
+            </select>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

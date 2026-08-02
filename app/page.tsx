@@ -21,6 +21,7 @@ interface Clase {
   nombre: string;
   laboratorio: string;
   laboratorioId?: string | number;
+  tipoSession?: string;
   horario: string;
   status?: string;
   dayOfWeek: number;
@@ -71,6 +72,7 @@ export default function SailAdminDashboard() {
   const [periodoFiltro, setPeriodoFiltro] = useState<number | null>(null);
   const [semanaFiltro, setSemanaFiltro] = useState<number>(1);
   const [listaPeriodos, setListaPeriodos] = useState<Periodo[]>([]);
+  const [editTipoSession, setEditTipoSession] = useState('CLASE');
 
   const [diaFiltro, setDiaFiltro] = useState(() => {
     const hoy = new Date();
@@ -259,6 +261,7 @@ useEffect(() => {
   const handleAbrirModal = (clase: Clase) => {
     setErroresEdicion({});
     setClaseSeleccionada(clase);
+    setEditTipoSession(clase.tipoSession || 'CLASE');
 
     const asignaturaInicial = clase.asignaturaId
       ? catalogo.find(a => a.id.toString() === clase.asignaturaId?.toString())
@@ -389,6 +392,7 @@ useEffect(() => {
           id: claseSeleccionada?.id,
           nombre: editNombre,
           asignaturaId: editAsignaturaId,
+          tipoSession: editTipoSession,
           maestroId: editMaestroId,
           laboratorioId: editLab,
           horario: editHorario,
@@ -471,6 +475,26 @@ useEffect(() => {
     const colorClase = encontrada.color || 'bg-blue-600';
     const esHex = colorClase.startsWith('#');
 
+    const esEvento = encontrada.nombre.toUpperCase().startsWith('EVENTO:');
+    const nombreLimpio = esEvento ? encontrada.nombre.substring(7).trim() : encontrada.nombre;
+    const esLaboratorio = encontrada.tipoSession === 'LABORATORIO';
+
+    const TituloSesion = (
+      <span className="text-xs font-bold leading-tight text-center">
+        {esEvento && (
+          <span className="block text-[8px] bg-purple-900/60 border border-white/40 text-white px-1.5 py-0.5 rounded-sm mx-auto mb-1 w-max tracking-widest uppercase shadow-sm backdrop-blur-sm">
+            EVENTO ESPECIAL
+          </span>
+        )}
+        {!esEvento && esLaboratorio && (
+          <span className="block text-[8px] bg-blue-900/60 border border-white/40 text-white px-1.5 py-0.5 rounded-sm mx-auto mb-1 w-max tracking-widest uppercase shadow-sm backdrop-blur-sm">
+            LABORATORIO
+          </span>
+        )}
+        {nombreLimpio} {!esEvento && encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
+      </span>
+    );
+
     return (
       <button
         onClick={() => handleAbrirAcciones(encontrada)}
@@ -500,23 +524,17 @@ useEffect(() => {
           </>
         ) : esFinalizada ? (
           <>
-            <span className="text-xs font-bold leading-tight text-center">
-              {encontrada.nombre} {encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
-            </span>
+            {TituloSesion}
             <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Finalizada</span>
           </>
         ) : esProgramada ? (
           <>
-            <span className="text-xs font-bold leading-tight text-center">
-              {encontrada.nombre} {encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
-            </span>
+            {TituloSesion}
             <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Programada</span>
           </>
         ) : (
           <>
-            <span className="text-xs font-bold leading-tight text-center">
-              {encontrada.nombre} {encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
-            </span>
+            {TituloSesion}
             {esEnCurso && (
               <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">En curso</span>
             )}
@@ -535,7 +553,7 @@ useEffect(() => {
       </button>
     );
   };
-
+  
 
   const opcionesNavegacion = [
     { tipo: 'item', titulo: 'Inicio', items: ['Inicio'] },
@@ -933,6 +951,18 @@ useEffect(() => {
                     <option value="MAINTENANCE">Mantenimiento (Bloqueado)</option>
                   </select>
                 </div>
+
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Tipo de Sesión</label>
+                    <select
+                      value={editTipoSession}
+                      onChange={(e) => setEditTipoSession(e.target.value)}
+                      className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black focus:border-[#1a73e8]"
+                    >
+                      <option value="CLASE">Clase (Teoría)</option>
+                      <option value="LABORATORIO">Laboratorio (Práctica)</option>
+                    </select>
+                  </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
