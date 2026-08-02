@@ -471,6 +471,20 @@ useEffect(() => {
     const colorClase = encontrada.color || 'bg-blue-600';
     const esHex = colorClase.startsWith('#');
 
+    const esEvento = encontrada.nombre.toUpperCase().startsWith('EVENTO:');
+    const nombreLimpio = esEvento ? encontrada.nombre.substring(7).trim() : encontrada.nombre;
+
+    const TituloSesion = (
+      <span className="text-xs font-bold leading-tight text-center">
+        {esEvento && (
+          <span className="block text-[8px] bg-purple-900/60 border border-white/40 text-white px-1.5 py-0.5 rounded-sm mx-auto mb-1 w-max tracking-widest uppercase shadow-sm backdrop-blur-sm">
+            EVENTO ESPECIAL
+          </span>
+        )}
+        {nombreLimpio} {!esEvento && encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
+      </span>
+    );
+
     return (
       <button
         onClick={() => handleAbrirAcciones(encontrada)}
@@ -500,23 +514,17 @@ useEffect(() => {
           </>
         ) : esFinalizada ? (
           <>
-            <span className="text-xs font-bold leading-tight text-center">
-              {encontrada.nombre} {encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
-            </span>
+            {TituloSesion}
             <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Finalizada</span>
           </>
         ) : esProgramada ? (
           <>
-            <span className="text-xs font-bold leading-tight text-center">
-              {encontrada.nombre} {encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
-            </span>
+            {TituloSesion}
             <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Programada</span>
           </>
         ) : (
           <>
-            <span className="text-xs font-bold leading-tight text-center">
-              {encontrada.nombre} {encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
-            </span>
+            {TituloSesion}
             {esEnCurso && (
               <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">En curso</span>
             )}
@@ -535,7 +543,7 @@ useEffect(() => {
       </button>
     );
   };
-
+  
 
   const opcionesNavegacion = [
     { tipo: 'item', titulo: 'Inicio', items: ['Inicio'] },
