@@ -71,7 +71,7 @@ const resolveAsignaturaId = async (name: string, color?: string | null) => {
 
 function generarFechasDeClase(fechaInicio: string, fechaFin: string, dayOfWeek: number) {
   const fechas = [];
-  let actual = new Date(fechaInicio + 'T00:00:00'); 
+  let actual = new Date(fechaInicio + 'T00:00:00');
   const limite = new Date(fechaFin + 'T23:59:59');
   const inicio = new Date(fechaInicio + 'T00:00:00');
 
@@ -83,11 +83,11 @@ function generarFechasDeClase(fechaInicio: string, fechaFin: string, dayOfWeek: 
 
   while (actual <= limite) {
     const diffTime = Math.abs(actual.getTime() - inicio.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     const semana = Math.floor(diffDays / 7) + 1;
 
     fechas.push({
-      fecha: actual.toISOString().split('T')[0], 
+      fecha: actual.toISOString().split('T')[0],
       semana: semana
     });
 
@@ -115,10 +115,10 @@ export async function GET(request: Request) {
    if (!finalPeriodoId) {
       const { data: periodoActivo } = await supabase
         .from('Periodo')
-        .select('id, fechaInicio') 
+        .select('id, fechaInicio')
         .eq('activo', true)
         .single();
-      
+
       finalPeriodoId = periodoActivo?.id || null;
     }
 
@@ -129,8 +129,8 @@ export async function GET(request: Request) {
     let query = supabase
       .from('ClassSession')
       .select(`
-        id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupo, grupoId, asignaturaId, tipoSession,
-        Laboratory(id, name), 
+        id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupoId, asignaturaId, tipoSession,
+        Laboratory(id, name),
         Asignatura(id, name, color),
         Grupo(id, nombre),
         ClassLog(estadoAuditoria, semana)
@@ -165,8 +165,7 @@ export async function GET(request: Request) {
 
       const asignatura = row['Asignatura'];
       const laboratory = row['Laboratory'];
-      const grupoRelacion = row['Grupo'];
-      
+
       const logsSemana = row['ClassLog'] as any[] | undefined;
       const logEspecifico = logsSemana?.find(l => l.semana === targetSemana);
 
@@ -177,10 +176,9 @@ export async function GET(request: Request) {
         maestroId: row['teacherId'],
         asignaturaId: row['asignaturaId'],
         tipoSession: row['tipoSession'] || 'CLASE',
-        status: estadoDinamico, 
+        status: estadoDinamico,
         nombre: asignatura?.['name'] || 'Sin Asignar',
         grupoId: row['grupoId'],
-        grupo: grupoRelacion?.['nombre'] || row['grupo'],
         laboratorio: laboratory ? laboratory['name'] : 'Sin Asignar',
         laboratorioId: laboratory?.['id'] || row['laboratoryId'],
         dayOfWeek: row['dayOfWeek'],
@@ -321,7 +319,6 @@ export async function PUT(request: Request) {
       asignaturaId,
       grupoId,
       tipoSession: body.tipoSession || 'CLASE',
-      grupo: null,
       dayOfWeek: dayOfWeek,
       startTime: startTime,
       endTime: endTime,

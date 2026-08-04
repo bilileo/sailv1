@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Calendar, CheckCircle, AlertCircle, Edit2, Trash2, AlertTriangle, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { Plus, X, Calendar, CheckCircle, AlertCircle, Edit2, Trash2, AlertTriangle, Search, CalendarPlus } from 'lucide-react';
 import { FormularioPeriodos } from '@/app/formulario/alta/FormularioPeriodos';
-
+import { FormularioAsuetos } from '@/app/formulario/alta/FormularioAsuetos';
 interface Periodo {
   id: number;
   nombre: string;
@@ -17,6 +17,8 @@ type FiltroEstado = 'todos' | 'activo' | 'inactivo';
 export function GestionPeriodos() {
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [modalAsuetoAbierto, setModalAsuetoAbierto] = useState(false);
+  const [periodoParaAsueto, setPeriodoParaAsueto] = useState<Periodo | null>(null);
   const [cargando, setCargando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todos');
@@ -60,6 +62,16 @@ export function GestionPeriodos() {
 
   const cerrarModal = () => {
     setModalAbierto(false);
+  };
+
+  const abrirModalAsueto = (periodo: Periodo) => {
+    setPeriodoParaAsueto(periodo);
+    setModalAsuetoAbierto(true);
+  };
+
+  const cerrarModalAsueto = () => {
+    setModalAsuetoAbierto(false);
+    setPeriodoParaAsueto(null);
   };
 
   const activarPeriodo = async (item: Periodo) => {
@@ -190,6 +202,14 @@ export function GestionPeriodos() {
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-black text-gray-800">{p.nombre}</h3>
               <div className="flex gap-1 z-10">
+                {/* Botón para abrir el modal de asuetos */}
+                <button
+                  onClick={() => abrirModalAsueto(p)}
+                  className="p-1.5 text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                  title="Añadir asueto"
+                >
+                  <CalendarPlus className="w-4 h-4" />
+                </button>
                 <button
                   onClick={() => abrirModal(p)}
                   className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -247,6 +267,14 @@ export function GestionPeriodos() {
           nombreProp={nombre}
           fechaInicioProp={fechaInicio}
           fechaFinProp={fechaFin}
+        />
+      )}
+
+      {/* Modal de Asuetos */}
+      {modalAsuetoAbierto && periodoParaAsueto !== null && (
+        <FormularioAsuetos
+          periodo={periodoParaAsueto}
+          onClose={cerrarModalAsueto}
         />
       )}
 
