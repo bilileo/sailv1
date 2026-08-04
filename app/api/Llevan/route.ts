@@ -9,12 +9,18 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const idGrupo = searchParams.get('idGrupo');
+    const idAsignatura = searchParams.get('idAsignatura');
 
-    if (!idGrupo) {
-      return new NextResponse('Bad data: idGrupo is required', { status: 400 });
+    let query = supabase.from('Llevan').select('*');
+
+    if (idGrupo) {
+      query = query.eq('idGrupo', idGrupo);
+    }
+    if (idAsignatura) {
+      query = query.eq('idAsignatura', idAsignatura);
     }
 
-    const { data, error } = await supabase.from('Llevan').select('idAsignatura').eq('idGrupo', idGrupo);
+    const { data, error } = await query;
 
     if (error) {
       return new NextResponse(error.message, { status: 500 });

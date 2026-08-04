@@ -51,6 +51,37 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
 
   // Para encontrar asignaturas
   const [asignaturas, setAsignaturas] = useState<Asignaturas[]>([]);
+  const [relacionesLlevan, setRelacionesLlevan] = useState<{idGrupo: number, idAsignatura: number}[]>([]);
+
+  // Cargar relaciones Llevan al abrir
+  useEffect(() => {
+    const fetchRelaciones = async () => {
+      try {
+        const res = await fetch(`/api/Llevan`);
+        if (res.ok) {
+          const data = await res.json();
+          setRelacionesLlevan(data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    if (open || open === undefined) fetchRelaciones();
+  }, [open]);
+
+  const gruposVisibles = React.useMemo(() => {
+    if (!nombre) return grupos;
+    const asignaturaSeleccionada = asignaturas.find(a => a.name === nombre);
+    if (!asignaturaSeleccionada) return grupos;
+    const gruposPermitidos = relacionesLlevan.filter(r => r.idAsignatura === asignaturaSeleccionada.id).map(r => r.idGrupo);
+    return grupos.filter(g => gruposPermitidos.includes(g.id));
+  }, [grupos, nombre, asignaturas, relacionesLlevan]);
+
+  const asignaturasVisibles = React.useMemo(() => {
+    if (!grupoId) return asignaturas;
+    const asignaturasPermitidas = relacionesLlevan.filter(r => r.idGrupo.toString() === grupoId).map(r => r.idAsignatura);
+    return asignaturas.filter(a => asignaturasPermitidas.includes(a.id));
+  }, [asignaturas, grupoId, relacionesLlevan]);
 
   // Cargar maestros según la asignatura seleccionada
   useEffect(() => {
@@ -269,38 +300,88 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
   const card = (
     <div className="max-w bg-white border border-gray-200 p-6 rounded-sm shadow-sm text-black">
 
-      {/** Formulario de creación de clase */}
+      {/* Formulario de creación de clase */}
 
-      {/* Nombre de la Asignatura */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-bold text-gray-800 mb-1">Asignatura</label>
-          <select
-            value={nombre}
-            onChange={(e) => {
-              setNombre(e.target.value);
-              setMaestro('');
-              if (errores.nombre) setErrores({ ...errores, nombre: undefined });
-              if (errores.maestro) setErrores({ ...errores, maestro: undefined });
-            }}
-            className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.nombre
-              ? 'border-red-500 bg-red-50'
-              : 'border-gray-300'
+        <div className="grid grid-cols-2 gap-4">
+          {/* Grupo */}
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
+            <select
+              value={grupoId}
+              onChange={(e) => {
+                const newGrupoId = e.target.value;
+                setGrupoId(newGrupoId);
+                if (newGrupoId && nombre) {
+                  const asignaturaSeleccionada = asignaturas.find(a => a.name === nombre);
+                  if (asignaturaSeleccionada) {
+                     const isValid = relacionesLlevan.some(r => r.idAsignatura === asignaturaSeleccionada.id && r.idGrupo.toString() === newGrupoId);
+                     if (!isValid) {
+                        setNombre('');
+                        setMaestro('');
+                     }
+                  }
+                }
+                if (errores.grupo) setErrores({ ...errores, grupo: undefined });
+              }}
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
+                errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300'
               }`}
-          >
-            <option value="">Seleccionar...</option>
-            {asignaturas.map((a) => (
-              <option key={a.id} value={a.name}>
-                {a.materiaCode + ' - ' + a.name}
-              </option>
-            ))}
-          </select>
-          {errores.nombre && (
-            <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-              <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
-              <span>{errores.nombre}</span>
-            </div>
-          )}
+            >
+              <option value="">Seleccionar grupo...</option>
+              {gruposVisibles.map((g) => (
+                <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
+              ))}
+            </select>
+            {grupos.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">Primero registra un grupo en la pestaña Grupos.</p>
+            )}
+            {errores.grupo && (
+              <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
+                <span>{errores.grupo}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Asignatura */}
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-1">Asignatura</label>
+            <select
+              value={nombre}
+              onChange={(e) => {
+                const newNombre = e.target.value;
+                setNombre(newNombre);
+                setMaestro('');
+                if (newNombre && grupoId) {
+                  const asignaturaSeleccionada = asignaturas.find(a => a.name === newNombre);
+                  if (asignaturaSeleccionada) {
+                     const isValid = relacionesLlevan.some(r => r.idAsignatura === asignaturaSeleccionada.id && r.idGrupo.toString() === grupoId);
+                     if (!isValid) setGrupoId('');
+                  }
+                }
+                if (errores.nombre) setErrores({ ...errores, nombre: undefined });
+                if (errores.maestro) setErrores({ ...errores, maestro: undefined });
+              }}
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.nombre
+                ? 'border-red-500 bg-red-50'
+                : 'border-gray-300'
+                }`}
+            >
+              <option value="">Seleccionar...</option>
+              {asignaturasVisibles.map((a) => (
+                <option key={a.id} value={a.name}>
+                  {a.materiaCode + ' - ' + a.name}
+                </option>
+              ))}
+            </select>
+            {errores.nombre && (
+              <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
+                <span>{errores.nombre}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Bloque de columnas para mejor visualización */}
@@ -373,48 +454,17 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {/* Grupo */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
-            <select
-              value={grupoId}
-              onChange={(e) => {
-                setGrupoId(e.target.value);
-                if (errores.grupo) setErrores({ ...errores, grupo: undefined });
-              }}
-              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
-                errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
-            >
-              <option value="">Seleccionar grupo...</option>
-              {grupos.map((g) => (
-                <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
-              ))}
-            </select>
-            {grupos.length === 0 && (
-              <p className="text-xs text-gray-500 mt-1">Primero registra un grupo en la pestaña Grupos.</p>
-            )}
-            {errores.grupo && (
-              <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
-                <span>{errores.grupo}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Tipo de Sesión */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 mb-1">Tipo de Sesión</label>
-            <select
-              value={tipoSession}
-              onChange={(e) => setTipoSession(e.target.value)}
-              className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors focus:border-[#0b6e3f] outline-none"
-            >
-              <option value="CLASE">Clase (Teoría)</option>
-              <option value="LABORATORIO">Laboratorio (Práctica)</option>
-            </select>
-          </div>
+        {/* Tipo de Sesión (ahora ocupa todo el ancho o se mantiene solo) */}
+        <div>
+          <label className="block text-sm font-bold text-gray-800 mb-1">Tipo de Sesión</label>
+          <select
+            value={tipoSession}
+            onChange={(e) => setTipoSession(e.target.value)}
+            className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors focus:border-[#0b6e3f] outline-none"
+          >
+            <option value="CLASE">Clase (Teoría)</option>
+            <option value="LABORATORIO">Laboratorio (Práctica)</option>
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
