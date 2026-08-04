@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle, Edit2, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { FormularioGrupos } from '@/app/formulario/alta/FormularioGrupos';
 
 interface Grupo {
   id: number;
@@ -17,6 +18,8 @@ interface GestionGruposProps {
 export function GestionGrupos({ onGruposActualizados }: GestionGruposProps) {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [modalAsignaturasAbierto, setModalAsignaturasAbierto] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [nombre, setNombre] = useState('');
   const [error, setError] = useState('');
@@ -171,6 +174,13 @@ export function GestionGrupos({ onGruposActualizados }: GestionGruposProps) {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
                       <button
+                        onClick={() => { setSelectedGroupId(grupo.id); setModalAsignaturasAbierto(true); }}
+                        className="px-3 py-1.5 text-xs font-bold text-[#0b6e3f] bg-green-50 hover:bg-green-100 rounded transition-colors flex items-center gap-1 border border-green-200"
+                        title="Añadir asignaturas"
+                      >
+                        <Plus className="w-3 h-3" /> Asignaturas
+                      </button>
+                      <button
                         onClick={() => abrirModal(grupo)}
                         className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors"
                         title="Editar grupo"
@@ -283,6 +293,10 @@ export function GestionGrupos({ onGruposActualizados }: GestionGruposProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {modalAsignaturasAbierto && selectedGroupId && (
+        <FormularioGrupos groupId={selectedGroupId} onClose={() => setModalAsignaturasAbierto(false)} />
       )}
     </div>
   );
