@@ -238,17 +238,16 @@ export async function POST(request: Request) {
     const { error } = await supabase
       .from('ClassSession')
       .insert([{
-        laboratoryId: parseInt(body.laboratorioId, 10),
-        teacherId: body.maestroId,
         asignaturaId,
-        grupoId,
-        tipoSession: body.tipoSession || 'CLASE',
-        grupo: null,
         dayOfWeek: dayOfWeek,
         startTime: startTime,
         endTime: endTime,
+        laboratoryId: parseInt(body.laboratorioId, 10),
+        teacherId: body.maestroId,
         status: 'ACTIVE',
-        periodoId: periodoActivo.id
+        periodoId: periodoActivo.id,
+        grupoId,
+        tipoSession: body.tipoSession || 'CLASE'
       }]);
 
     if (!error && asignaturaId && body.maestroId) {
