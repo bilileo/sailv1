@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UserCheck, CheckCircle2 } from 'lucide-react';
 import { registerStudent } from '../../maestro/dashboard/actions';
+import { Suspense } from 'react';
 
 interface DeviceType {
   id: number;
@@ -12,7 +13,7 @@ interface DeviceType {
 
 type DeviceUseOption = 'propio' | 'prestado' | 'laboratorio';
 
-export default function StudentRegisterPage() {
+function StudentRegisterPageContent() {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [deviceUseOption, setDeviceUseOption] = useState<DeviceUseOption>('propio');
@@ -315,5 +316,13 @@ export default function StudentRegisterPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function StudentRegisterPage() {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <StudentRegisterPageContent />
+    </Suspense>
   );
 }

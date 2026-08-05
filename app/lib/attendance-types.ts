@@ -47,4 +47,7 @@ export interface NuevaClase {
   duracion: number;
   grupoId: string;
   grupo?: string;
+  repeat?: boolean;
+  fechaClase?: string;
+  semana?: number;
 }

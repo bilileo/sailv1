@@ -7,6 +7,7 @@ import { getStudents, updateStudentStatus, deleteStudent, updateActiveCode, regi
 import { StudentRow, StudentStatus } from '@/app/lib/attendance-types';
 import { getSession, signOut } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense } from 'react';
 
 const CODE_REFRESH_INTERVAL = 60; // Segundos
 
@@ -42,7 +43,7 @@ interface ClaseDash {
   color: string;
 }
 
-export default function TeacherDashboard() {
+function TeacherDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const classId = searchParams.get('classId');
@@ -779,5 +780,13 @@ useEffect(() => {
         )}
       </main>
     </div>
+  );
+}
+
+export default function TeacherDashboard() {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <TeacherDashboardContent />
+    </Suspense>
   );
 }

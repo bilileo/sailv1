@@ -9,6 +9,7 @@ interface Maestro { id: number; name: string; }
 interface Clase { id: string; nombre: string; laboratorio: string; horario: string; dayOfWeek: number; grupo?: string; grupoId?: string | number | null; }
 interface Asignaturas { id: number; name: string; materiaCode: string; color?: string; }
 interface Grupo { id: number; nombre: string; }
+interface Asueto { id: number; fechaAsueto: string; fechaFinAsueto?: string; motivo: string; }
 
 interface FormularioClaseProps {
   onClaseCreada: (nuevaClase: NuevaClase) => void;
@@ -27,10 +28,14 @@ interface FormularioClaseProps {
     color: string;
     grupoId: string;
     grupo: string;
+    semana: number;
+    fecha: string;
   }>;
+  periodoFechas?: { min: string; max: string };
+  listaAsuetos?: Asueto[];
 }
 
-export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, clases, grupos, open, onClose }: FormularioClaseProps) => {
+export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, clases, grupos, open, onClose, periodoFechas, listaAsuetos = [] }: FormularioClaseProps) => {
   const [nombre, setNombre] = useState('');
   const [lab, setLab] = useState(initialValues?.laboratorioId || '');
   const [maestro, setMaestro] = useState('');
@@ -38,6 +43,9 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
   const [duracion, setDuracion] = useState(initialValues?.duracion || 1);
   const [grupoId, setGrupoId] = useState(initialValues?.grupoId || '');
   const [tipoSession, setTipoSession] = useState('CLASE');
+  const [repeat, setRepeat] = useState(false);
+  const [fechaClase, setFechaClase] = useState(initialValues?.fecha || '');
+  const [semana, setSemana] = useState(initialValues?.semana || 1);
   const [maestros, setMaestros] = useState<Maestro[]>([]);
   const [cargandoMaestros, setCargandoMaestros] = useState(false);
   const [errores, setErrores] = useState<{
@@ -46,6 +54,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
     maestro?: string;
     horario?: string;
     grupo?: string;
+    fecha?: string;
   }>({});
   const [enviando, setEnviando] = useState(false);
 
@@ -258,6 +267,21 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       nuevosErrores.grupo = 'Por favor, selecciona un grupo';
     }
 
+    if (!repeat && !fechaClase) {
+      nuevosErrores.fecha = 'Elige una fecha para esta clase única';
+    }
+
+    if (!repeat && fechaClase) {
+      const esAsueto = listaAsuetos.some(a => {
+        const inicioStr = a.fechaAsueto;
+        const finStr = a.fechaFinAsueto || a.fechaAsueto;
+        return fechaClase >= inicioStr && fechaClase <= finStr;
+      });
+      if (esAsueto) {
+        nuevosErrores.fecha = 'No puedes asignar una clase en un día de Asueto';
+      }
+    }
+
     // Si hay errores, mostrarlos y retornar
     if (Object.keys(nuevosErrores).length > 0) {
       setErrores(nuevosErrores);
@@ -275,7 +299,10 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       horario,
       duracion,
       tipoSession,
-      grupoId
+      grupoId,
+      repeat,
+      fechaClase,
+      semana
     };
 
     onClaseCreada(datosClase);
@@ -467,27 +494,93 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
           </select>
         </div>
 
+        <div className="flex items-center mb-4 mt-2">
+          <input
+            type="checkbox"
+            id="repeatClass"
+            checked={repeat}
+            onChange={(e) => setRepeat(e.target.checked)}
+            className="w-4 h-4 text-[#0b6e3f] bg-gray-100 border-gray-300 rounded focus:ring-[#0b6e3f]"
+          />
+          <label htmlFor="repeatClass" className="ml-2 text-sm font-bold text-gray-800">
+            Repetir semanalmente
+          </label>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
-          {/* Día de la semana */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 mb-1">Día</label>
-            <select
-              value={dia}
-              onChange={(e) => setDia(e.target.value)}
-              className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium"
-            >
-              {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(d => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </div>
+          {repeat ? (
+            <>
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-1">Día</label>
+                <select
+                  value={dia}
+                  onChange={(e) => setDia(e.target.value)}
+                  className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium"
+                >
+                  {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-1">Semana Inicial</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="52" 
+                  value={semana} 
+                  onChange={(e) => setSemana(parseInt(e.target.value))} 
+                  className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium" 
+                />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="block text-sm font-bold text-gray-800 mb-1">Fecha</label>
+              <input 
+                type="date" 
+                min={periodoFechas?.min}
+                max={periodoFechas?.max}
+                value={fechaClase} 
+                onChange={(e) => {
+                  setFechaClase(e.target.value);
+                  if (e.target.value) {
+                     const diasMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                     const newDia = diasMap[new Date(e.target.value + 'T12:00:00').getDay()];
+                     setDia(newDia);
+                  }
+                }} 
+                className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium ${errores.fecha ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+              />
+              {errores.fecha && (
+                <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
+                  <span>{errores.fecha}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Duración en horas de la clase */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Duración (horas)</label>
             <select
               value={duracion}
-              onChange={(e) => setDuracion(parseInt(e.target.value))}
+              onChange={(e) => {
+                const nuevaDuracion = parseInt(e.target.value);
+                setDuracion(nuevaDuracion);
+                
+                // Intenta mantener la hora de inicio actual
+                if (horario) {
+                  const inicio = parseInt(horario.split('-')[0].trim().split(':')[0]);
+                  const fin = inicio + nuevaDuracion;
+                  if (fin <= 24) {
+                    setHorario(`${inicio}:00- ${fin}:00`);
+                  } else {
+                    setHorario('');
+                  }
+                }
+              }}
               className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map(h => (

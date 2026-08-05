@@ -12,6 +12,7 @@ import { GestionIncidencias } from './gestion/GestionIncidencias/GestionIncidenc
 import { GestionPeriodos } from './gestion/GestionPeriodos/GestionPeriodos';
 import { Reportes } from './gestion/GestionReportes/Reportes';
 import { GestionGrupos } from './gestion/GestionGrupos/GestionGrupos';
+import { getWeekNumber, getTotalWeeks, getDatesOfWeek } from '../utils/calendar';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
@@ -67,7 +68,7 @@ export default function SailAdminDashboard() {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
   const [formModalOpen, setFormModalOpen] = useState(false);
-  interface FormInitialValues { horario?: string; dia?: string; laboratorioId?: string }
+  interface FormInitialValues { horario?: string; dia?: string; laboratorioId?: string; semana?: number; fecha?: string }
   const [formInitialValues, setFormInitialValues] = useState<FormInitialValues>();
   const [periodoFiltro, setPeriodoFiltro] = useState<number | null>(null);
   const [semanaFiltro, setSemanaFiltro] = useState<number>(1);
@@ -105,9 +106,15 @@ export default function SailAdminDashboard() {
     classSessionId?: string;
     reportedById?: string;
     respuesta?: string;
+    resolvedBy?: string;
+    createdAt?: string;
+    fecha?: string;
+    reportedAt?: string;
   }
+  interface Asueto { id: number; fechaAsueto: string; fechaFinAsueto?: string; motivo: string; }
 
   const [incidencias, setIncidencias] = useState<IncidenciaMinimal[]>([]);
+  const [listaAsuetos, setListaAsuetos] = useState<Asueto[]>([]);
   const [editStatus, setEditStatus] = useState('ACTIVE');
   const [resueltasVistas, setResueltasVistas] = useState(0);
   const misResueltasTotal = isMaestro ? incidencias.filter(i => i.status === 'RESOLVED' && i.reportedById === usuarioActivo?.id).length : 0;
@@ -157,6 +164,9 @@ export default function SailAdminDashboard() {
 
     if (!periodoFiltro) return;
 
+    const resAsuetos = await fetch(`/api/asuetos?periodoID=${periodoFiltro}&t=${timestamp}`, { cache: 'no-store' });
+    if (resAsuetos.ok) setListaAsuetos(await resAsuetos.json());
+
     const params = new URLSearchParams({
         periodoId: periodoFiltro.toString(),
         semana: semanaFiltro.toString(),
@@ -186,10 +196,7 @@ useEffect(() => {
           setPeriodoFiltro(activo.id);
 
           if (activo.fechaInicio) {
-            const inicio = new Date(activo.fechaInicio + 'T00:00:00');
-            const ahora = new Date();
-            const diffDays = Math.ceil(Math.abs(ahora.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
-            const semActual = Math.floor(diffDays / 7) + 1;
+            const semActual = getWeekNumber(new Date(), activo.fechaInicio);
             setSemanaFiltro(semActual > 0 ? semActual : 1);
           }
         }
@@ -252,9 +259,9 @@ useEffect(() => {
     setActiveTab('Inicio');
   };
 
-  const handleAbrirFormModal = (horario: string, nombreLab: string) => {
+  const handleAbrirFormModal = (horario: string, nombreLab: string, fechaExacta?: string) => {
     const lab = laboratorios.find(l => l.name === nombreLab);
-    setFormInitialValues({ horario, dia: diaFiltro, laboratorioId: lab?.id?.toString() });
+    setFormInitialValues({ horario, dia: diaFiltro, laboratorioId: lab?.id?.toString(), semana: semanaFiltro, fecha: fechaExacta });
     setFormModalOpen(true);
   };
 
@@ -418,6 +425,34 @@ useEffect(() => {
     }
   };
 
+  const periodoObj = listaPeriodos.find(p => p.id === periodoFiltro);
+
+  const diasDeSemana = React.useMemo(() => {
+    if (!periodoObj?.fechaInicio) {
+      return mapaDias.map(d => ({ nombre: d, esAsueto: false, fechaFormat: '', fechaExacta: undefined as string | undefined }));
+    }
+    const dates = getDatesOfWeek(periodoObj.fechaInicio, semanaFiltro);
+    return mapaDias.map((d, index) => {
+      const date = dates[index];
+      const formatStr = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+      const isoDate = date.toISOString().split('T')[0];
+      
+      const esAsueto = listaAsuetos.some(a => {
+        const dStr = isoDate;
+        const inicioStr = a.fechaAsueto;
+        const finStr = a.fechaFinAsueto || a.fechaAsueto;
+        return dStr >= inicioStr && dStr <= finStr;
+      });
+
+      return {
+        nombre: d,
+        esAsueto,
+        fechaFormat: formatStr,
+        fechaExacta: isoDate
+      };
+    });
+  }, [periodoObj, semanaFiltro, listaAsuetos]);
+
   // 4. Filtramos las clases comparando nuestro getNombreDia con el filtro actual
   const clasesDelDia = clases.filter(c => getNombreDia(c.dayOfWeek) === diaFiltro);
   const salonesOcupados = new Set(clasesDelDia.map(c => c.laboratorio)).size;
@@ -427,15 +462,30 @@ useEffect(() => {
     ? laboratoriosUnicos.slice(0, -1).join(', ') + ' y ' + laboratoriosUnicos[laboratoriosUnicos.length - 1]
     : laboratoriosUnicos[0] || 'Ninguno';
 
-  const renderizarCelda = (hora: string, nombreLab: string) => {
-    const horaActual = parseInt(hora.split(':')[0]);
+  const renderizarCelda = (horaStr: string, laboratorioName: string) => {
+    // Buscar si el diaFiltro es Asueto
+    const diaAsueto = diasDeSemana.find(d => d.nombre === diaFiltro && d.esAsueto);
+    
+    if (diaAsueto) {
+      if (horaStr === '12:00- 13:00') {
+         return (
+           <div className="w-full h-full min-h-[64px] bg-red-100 flex flex-col items-center justify-center p-2 border-b border-black/10 text-red-600 font-bold opacity-70">
+             ASUETO
+           </div>
+         );
+      } else {
+         return <div className="w-full h-full min-h-[64px] bg-red-50 border-b border-black/10"></div>;
+      }
+    }
+
+    const horaActual = parseInt(horaStr.split(':')[0]);
     const hoyIdx = new Date().getDay();
     const diaFiltroIdx = mapaDias.indexOf(diaFiltro);
     const esDiaActual = diaFiltroIdx === hoyIdx;
     const horaSistema = new Date().getHours();
 
     const encontrada = clasesDelDia.find(c => {
-      if (c.laboratorio !== nombreLab) return false;
+      if (c.laboratorio !== laboratorioName) return false;
 
       const partes = c.horario.split('-');
       const horaInicio = parseInt(partes[0].trim().split(':')[0]);
@@ -456,7 +506,10 @@ useEffect(() => {
       }
 
       return (
-        <button onClick={() => handleAbrirFormModal(hora, nombreLab)} className="w-full h-full min-h-[64px] bg-gray-100 text-gray-500 flex flex-col items-center justify-center p-2 text-xs border-b border-gray-200 hover:bg-gray-200 transition-colors">
+        <button onClick={() => {
+            const fechaExacta = diasDeSemana.find(d => d.nombre === diaFiltro)?.fechaExacta;
+            handleAbrirFormModal(horaStr, laboratorioName, fechaExacta);
+          }} className="w-full h-full min-h-[64px] bg-gray-100 text-gray-500 flex flex-col items-center justify-center p-2 text-xs border-b border-gray-200 hover:bg-gray-200 transition-colors">
           Disponible <span className="text-[10px]">(Haga click para agendar)</span>
         </button>
       );
@@ -773,24 +826,27 @@ useEffect(() => {
                       ))}
                     </select>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Disponibilidad para: <strong className="text-[#0b6e3f]">{diaFiltro}</strong>
-                  </p>
+                  {periodoObj && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Periodo: {periodoObj.fechaInicio} a {periodoObj.fechaFin}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
                   <div className="flex bg-gray-100 p-1 rounded-sm border border-gray-200 overflow-x-auto">
-                    {mapaDias.map(d => (
+                    {diasDeSemana.map(d => (
                       <button
-                        key={d}
-                        onClick={() => setDiaFiltro(d)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-sm transition-colors whitespace-nowrap ${
-                          diaFiltro === d
-                            ? 'bg-[#0b6e3f] text-white shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                        key={d.nombre}
+                        onClick={() => setDiaFiltro(d.nombre)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-sm transition-colors whitespace-nowrap flex flex-col items-center ${
+                          diaFiltro === d.nombre
+                            ? (d.esAsueto ? 'bg-red-600 text-white shadow-sm' : 'bg-[#0b6e3f] text-white shadow-sm')
+                            : (d.esAsueto ? 'text-red-500 hover:bg-red-100' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200')
                         }`}
                       >
-                        {d}
+                        <span>{d.nombre}</span>
+                        <span className="text-[10px] font-normal opacity-90">{d.fechaFormat}</span>
                       </button>
                     ))}
                   </div>
@@ -802,7 +858,7 @@ useEffect(() => {
                       onChange={(e) => setSemanaFiltro(Number(e.target.value))}
                       className="text-sm font-black text-gray-800 bg-transparent outline-none cursor-pointer appearance-none text-center"
                     >
-                      {Array.from({length: 16}, (_, i) => i + 1).map(s => (
+                      {periodoObj && Array.from({length: getTotalWeeks(periodoObj.fechaInicio || '', periodoObj.fechaFin || '')}, (_, i) => i + 1).map(s => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
@@ -1275,15 +1331,16 @@ useEffect(() => {
       )}
 
       {formModalOpen && (
-        /** Formulario modal invocado desde los espacios Disponibles */
         <FormularioClase
-          initialValues={formInitialValues}
-          onClaseCreada={handleCrearClase}
           laboratorios={laboratorios}
           clases={clases}
           grupos={grupos}
+          onClaseCreada={handleCrearClase}
           open={formModalOpen}
           onClose={() => setFormModalOpen(false)}
+          initialValues={formInitialValues}
+          periodoFechas={periodoObj ? { min: periodoObj.fechaInicio || '', max: periodoObj.fechaFin || '' } : undefined}
+          listaAsuetos={listaAsuetos}
         />
       )}
 
