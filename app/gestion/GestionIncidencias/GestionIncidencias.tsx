@@ -6,8 +6,8 @@ import { toast } from 'sonner';
 import { FormularioIncidencias } from '@/app/formulario/alta/FormularioIncidencias';
 
 interface Incidencias {
-  incidencias: Array<{ id: string; status?: string; message?: string; laboratorio?: string; clase?: string; reportador?: string; classSessionId?: string; reportedById?: string; respuesta?: string; resolvedBy?: string }>;
-  clases: Array<{ id: string; laboratorio?: string; nombre?: string; maestroId?: string }>;
+  incidencias: Array<{ id: string; status?: string; message?: string; laboratorio?: string; clase?: string; reportador?: string; classSessionId?: string; reportedById?: string; respuesta?: string; resolvedBy?: string; createdAt?: string; fecha?: string; reportedAt?: string; }>;
+  clases: Array<{ id: string; laboratorio?: string; nombre?: string; maestroId?: string | number }>;
   usuarioActivo: { id?: string; role?: string; name?: string } | null;
   onIncidenciaActualizada: () => void;
 }

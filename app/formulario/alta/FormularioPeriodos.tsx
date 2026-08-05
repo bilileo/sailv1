@@ -40,6 +40,11 @@ export const FormularioPeriodos = ({ cerrarModal, cargar, idProp, nombreProp, fe
       return;
     }
 
+    const isSunday = new Date(fechaInicio + 'T00:00:00').getDay() === 0; // Sunday = 0 in JS
+    const isSaturday = new Date(fechaFin + 'T00:00:00').getDay() === 6;
+    if (!isSunday) return setError('La fecha de inicio debe ser domingo');
+    if (!isSaturday) return setError('La fecha de fin debe ser sábado');
+
     if (new Date(fechaInicio) >= new Date(fechaFin)) {
       setError('La fecha de inicio debe ser anterior a la fecha de finalización.');
       return;

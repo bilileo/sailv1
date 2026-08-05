@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 
 interface IncidenciasProps {
   cerrarModal: () => void
-  clases: Array<{ id: string; laboratorio?: string; nombre?: string; maestroId?: string }>;
+  clases: Array<{ id: string; laboratorio?: string; nombre?: string; maestroId?: string | number }>;
   usuarioActivo: { id?: string; role?: string; name?: string } | null;
   onIncidenciaActualizada: () => void;
   editId: string | null;
@@ -81,7 +81,7 @@ export const FormularioIncidencias = ({ cerrarModal, clases, usuarioActivo, onIn
               >
                 <option value="">Selecciona la clase actual...</option>
                 {clases
-                  .filter(c => usuarioActivo?.role === 'MAESTRO' ? c.maestroId === usuarioActivo.id : true)
+                  .filter(c => usuarioActivo?.role === 'MAESTRO' ? c.maestroId?.toString() === usuarioActivo.id : true)
                   .map(c => (
                     <option key={c.id} value={c.id}>{c.laboratorio} - {c.nombre}</option>
                   ))}

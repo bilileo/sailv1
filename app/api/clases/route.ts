@@ -133,7 +133,8 @@ export async function GET(request: Request) {
         Laboratory(id, name),
         Asignatura(id, name, color),
         Grupo(id, nombre),
-        ClassLog(estadoAuditoria, semana)
+        ClassLog(estadoAuditoria, semana),
+        ClassDate(fechaClase)
       `)
       .in('status', ['ACTIVE', 'ENDED', 'MAINTENANCE'])
       .eq('periodoId', finalPeriodoId);
@@ -145,20 +146,43 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) throw error;
 
+    const { data: pData } = await supabase.from('Periodo').select('fechaInicio').eq('id', finalPeriodoId).single();
     let targetSemana = 1;
-    if (urlSemana) {
-      targetSemana = parseInt(urlSemana, 10);
-    } else {
-      const { data: pData } = await supabase.from('Periodo').select('fechaInicio').eq('id', finalPeriodoId).single();
-      if (pData?.fechaInicio) {
-        const inicio = new Date(pData.fechaInicio + 'T00:00:00');
+    let startStr = '';
+    let endStr = '';
+
+    if (pData?.fechaInicio) {
+      const inicio = new Date(pData.fechaInicio + 'T00:00:00');
+      
+      if (urlSemana) {
+        targetSemana = parseInt(urlSemana, 10);
+      } else {
         const diffDays = Math.ceil(Math.abs(new Date().getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
         targetSemana = Math.floor(diffDays / 7) + 1;
       }
+
+      const startOfWeek = new Date(inicio);
+      startOfWeek.setDate(startOfWeek.getDate() + (targetSemana - 1) * 7);
+      
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(endOfWeek.getDate() + 6);
+      
+      startStr = startOfWeek.toISOString().split('T')[0];
+      endStr = endOfWeek.toISOString().split('T')[0];
+    } else if (urlSemana) {
+      targetSemana = parseInt(urlSemana, 10);
     }
 
     const formattedData = data.map((c) => {
       const row = c as Record<string, any>;
+
+      // Check if ClassSession has a ClassDate in this week
+      if (startStr && endStr) {
+        const classDates = row['ClassDate'] as any[] | undefined;
+        if (!classDates || classDates.length === 0) return null;
+        const hasDateInWeek = classDates.some(d => d.fechaClase >= startStr && d.fechaClase <= endStr);
+        if (!hasDateInWeek) return null;
+      }
       const sHour = parseHour(String(row.startTime ?? null));
       const eHour = parseHour(String(row.endTime ?? null));
       if (sHour === null || eHour === null) return null;
@@ -227,7 +251,7 @@ export async function POST(request: Request) {
 
     const { data: periodoActivo, error: errorPeriodo } = await supabase
     .from('Periodo')
-    .select('id')
+    .select('id, fechaInicio, fechaFin')
     .eq('activo', true)
     .single();
 
@@ -235,7 +259,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Debes tener un periodo activo para crear clases' }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const { data: sessionData, error } = await supabase
       .from('ClassSession')
       .insert([{
         asignaturaId,
@@ -248,7 +272,45 @@ export async function POST(request: Request) {
         periodoId: periodoActivo.id,
         grupoId,
         tipoSession: body.tipoSession || 'CLASE'
-      }]);
+      }])
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    const sessionId = sessionData.id;
+
+    const { data: asuetos } = await supabase
+      .from('Asuetos')
+      .select('fechaAsueto, fechaFinAsueto')
+      .eq('periodoID', periodoActivo.id);
+
+    let fechasParaInsertar: string[] = [];
+    if (!body.repeat) {
+      if (!body.fechaClase) return NextResponse.json({ error: 'Falta fechaClase para clase única' }, { status: 400 });
+      fechasParaInsertar.push(body.fechaClase);
+    } else {
+      const allFechas = generarFechasDeClase(periodoActivo.fechaInicio, periodoActivo.fechaFin, dayOfWeek);
+      fechasParaInsertar = allFechas.map(f => f.fecha);
+    }
+
+    fechasParaInsertar = fechasParaInsertar.filter(fechaStr => {
+      const d = new Date(fechaStr + 'T00:00:00');
+      for (const asueto of (asuetos || [])) {
+        const aInicio = new Date(asueto.fechaAsueto + 'T00:00:00');
+        const aFin = asueto.fechaFinAsueto ? new Date(asueto.fechaFinAsueto + 'T23:59:59') : new Date(asueto.fechaAsueto + 'T23:59:59');
+        if (d >= aInicio && d <= aFin) return false;
+      }
+      return true;
+    });
+
+    if (fechasParaInsertar.length > 0) {
+      const classDates = fechasParaInsertar.map(d => ({
+        idClassSession: sessionId,
+        fechaClase: d
+      }));
+      const { error: errorFechas } = await supabase.from('ClassDate').insert(classDates);
+      if (errorFechas) throw errorFechas;
+    }
 
     if (!error && asignaturaId && body.maestroId) {
       await supabase
