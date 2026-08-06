@@ -3,13 +3,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, LogOut, Users, X, Clock, QrCode } from 'lucide-react';
-import { getStudents, updateStudentStatus, deleteStudent, updateActiveCode, registerStudent, finalizarClaseParaHoy } from './actions';
+import { getStudents, updateStudentStatus, deleteStudent, registerStudent, finalizarClaseParaHoy } from './actions';
 import { StudentRow, StudentStatus } from '@/app/lib/attendance-types';
-import { getSession, signOut } from 'next-auth/react';
+import { getSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
+import { Navbar } from '@/app/components/Navbar';
 
-const CODE_REFRESH_INTERVAL = 60; // Segundos
+import { getCodeForLaboratory } from '@/app/lib/otpLab';
+
+const CODE_REFRESH_INTERVAL = 30; // Segundos
 
 const getDiaJs = (dayOfWeek?: number) => {
   if (!dayOfWeek) return null;
@@ -27,9 +30,6 @@ const parseHorario = (horario?: string) => {
 };
 
 const getMinutesNow = (fecha: Date) => fecha.getHours() * 60 + fecha.getMinutes();
-
-// Función auxiliar: Genera un código alfanumérico aleatorio de 6 caracteres
-const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
 interface ClaseDash {
   id: string;
@@ -252,39 +252,47 @@ useEffect(() => {
   }, [classStatus, classId]);
 
   // === MOTOR DEL CÓDIGO DINÁMICO ===
-  // Este Effect maneja la rotación del código cada 10 segundos
+  // Este Effect maneja la rotación del código
   useEffect(() => {
     if (classStatus !== 'inProgress') {
-      if (claseInfo?.laboratorioId) {
-        updateActiveCode(String(claseInfo.laboratorioId), null); // Limpiamos el codigo activo en el JSON
-      }
       return;
     }
 
     if (!classId || !claseInfo?.laboratorioId) return;
 
-    // Inicializar el primer código
-    const initialCode = generateCode();
+    let isMounted = true;
+
+    const fetchCode = async () => {
+      try {
+        const code = await getCodeForLaboratory(String(claseInfo.laboratorioId));
+        if (!isMounted) return;
+        setCurrentCode(code);
+      } catch (e) {
+        console.error('Error generating OTP:', e);
+      }
+    };
+
+    const getRemaining = () => 30 - (Math.floor(Date.now() / 1000) % 30);
+    
     setTimeout(() => {
-      setCurrentCode(initialCode);
+      if (isMounted) setTimeLeft(getRemaining());
     }, 0);
-    updateActiveCode(String(claseInfo.laboratorioId), initialCode); // Guardar en el JSON
+    fetchCode();
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // El tiempo expiró: Generamos nuevo código
-          const nextCode = generateCode();
-          setCurrentCode(nextCode);
-          updateActiveCode(String(claseInfo.laboratorioId), nextCode); // Actualizamos el codigo en el JSON via Server Action
-          return CODE_REFRESH_INTERVAL;
-        }
-        return prev - 1; // Solo restamos 1 segundo
-      });
+      const remaining = getRemaining();
+      setTimeLeft(remaining);
+      
+      if (remaining === 30) {
+        fetchCode();
+      }
     }, 1000);
 
     // Limpieza del intervalo cuando el componente se desmonta
-    return () => clearInterval(timer);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
   }, [classStatus, classId, claseInfo?.laboratorioId]);
 
   // === MANEJADORES DE EVENTOS (HANDLERS) ===
@@ -395,41 +403,7 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] text-gray-900 font-sans pb-10">
-      <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex space-x-8">
-          {['Inicio', 'Administradores', 'Maestros', 'Auxiliares', 'Clases', 'Alumnos', 'Incidencias'].map(t => {
-            if (usuarioActivo?.role === 'MAESTRO' && t !== 'Inicio' && t !== 'Incidencias') return null;
-
-            if (usuarioActivo?.role === 'AUXILIAR' && (t === 'Administradores' || t === 'Auxiliares')) return null;
-
-            return (
-              <button
-                key={t}
-                onClick={() => router.push('/')}
-                className="text-sm font-bold transition-colors text-gray-500 hover:text-gray-700"
-              >
-                {t}
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex items-center space-x-4 text-sm font-bold">
-          <div className="flex items-center text-gray-700">
-            <User className="w-4 h-4 mr-2" />
-            {usuarioActivo ? `${usuarioActivo.name} (${usuarioActivo.role})` : 'Cargando...'}
-          </div>
-          <button
-            onClick={async () => {
-              await signOut({ redirect: false });
-              window.location.href = '/login';
-            }}
-            className="text-red-500 hover:text-red-700 flex items-center space-x-1"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Cerrar Sesion</span>
-          </button>
-        </div>
-      </nav>
+      <Navbar usuarioActivo={usuarioActivo} />
 
       <main className="max-w-6xl mx-auto p-6 mt-4">
         {/* === ENCABEZADO DE LA CLASE === */}
@@ -463,13 +437,18 @@ useEffect(() => {
                 <span>No se encontro la clase o no tienes acceso.</span>
               )}
               {!cargandoClase && !claseNoEncontrada && (
-                <span>
-                  {claseInfo?.laboratorio ? `Laboratorio: ${claseInfo.laboratorio}` : 'Laboratorio: ---'}
-                  {' · '}
-                  {maestroNombre ? `Maestro: ${maestroNombre}` : 'Maestro: ---'}
-                  {' · '}
-                  {claseInfo?.status ? `Estado: ${claseInfo.status}` : 'Estado: ---'}
-                </span>
+                <div className="flex flex-col space-y-1">
+                  <span>
+                    {claseInfo?.laboratorio ? `Laboratorio: ${claseInfo.laboratorio}` : 'Laboratorio: ---'}
+                    {' · '}
+                    {maestroNombre ? `Maestro: ${maestroNombre}` : 'Maestro: ---'}
+                    {' · '}
+                    {claseInfo?.status ? `Estado: ${claseInfo.status}` : 'Estado: ---'}
+                  </span>
+                  <span className="font-semibold text-[#1a73e8] capitalize">
+                    {new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </span>
+                </div>
               )}
             </div>
           </div>

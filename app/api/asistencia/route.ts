@@ -94,12 +94,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tipo de dispositivo invalido' }, { status: 400 });
     }
 
+    const hoy = new Date().toISOString().split('T')[0];
+    const { data: classDate } = await supabase
+      .from('ClassDate')
+      .select('id')
+      .eq('idClassSession', body.classSessionId)
+      .eq('fechaClase', hoy)
+      .maybeSingle();
+
     const payload: Record<string, unknown> = {
       classSessionId: body.classSessionId,
       teacherId: body.teacherId,
       studentId: body.studentId,
       registrationCode: body.registrationCode,
       deviceTypeId,
+      claseId: classDate?.id || null,
       status: body.status || 'PRESENT',
       checkInTime: body.checkInTime,
       checkOutTime: body.checkOutTime,

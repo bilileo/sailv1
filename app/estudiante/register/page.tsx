@@ -23,6 +23,8 @@ function StudentRegisterPageContent() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [className, setClassName] = useState('Clase Desconocida');
+  const [groupName, setGroupName] = useState('Sin Grupo');
   const [deviceTypes, setDeviceTypes] = useState<DeviceType[]>([]);
 
   const router = useRouter();
@@ -56,6 +58,10 @@ function StudentRegisterPageContent() {
       setClassId(access.classId || classIdFromUrl);
       if (student?.id) setId(student.id);
       if (student?.name) setName(student.name);
+      
+      if (access.className) setClassName(access.className);
+      if (access.groupName) setGroupName(access.groupName);
+      
       setIsAuthorized(true);
     } catch {
       router.replace('/estudiante/join');
@@ -161,7 +167,7 @@ function StudentRegisterPageContent() {
             <UserCheck size={32} className="text-[#1a73e8]" />
           </div>
           <h1 className="text-xl font-bold text-gray-900">Registro de Asistencia</h1>
-          <p className="text-gray-500 text-sm mt-1">Admón. Base de Datos - Grupo 151</p>
+          <p className="text-gray-500 text-sm mt-1">{className} - {groupName}</p>
           <p className="text-blue-600 text-xs mt-2 font-semibold">Código activo: {codeFromUrl}</p>
         </div>
 
