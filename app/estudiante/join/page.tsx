@@ -37,9 +37,18 @@ export default function JoinClassPage() {
       setIsLoading(false);
       return;
     }
+    
+    // Obtener detalles de la clase para mostrarlos en la siguiente pantalla
+    const { getClassInfo } = await import('../../maestro/dashboard/actions');
+    const classInfo = await getClassInfo(classId);
 
     // Guardamos en sesión solo para pasar la validación a la siguiente pantalla
-    sessionStorage.setItem('registerAccess', JSON.stringify({ code: normalizedCode, classId }));
+    sessionStorage.setItem('registerAccess', JSON.stringify({ 
+      code: normalizedCode, 
+      classId,
+      className: classInfo?.className || 'Clase Desconocida',
+      groupName: classInfo?.groupName || 'Sin Grupo'
+    }));
     setError('');
 
     router.push(`/estudiante/register?code=${normalizedCode}&classId=${encodeURIComponent(classId)}`);
@@ -62,7 +71,7 @@ export default function JoinClassPage() {
           <div>
             <input
               type="text"
-              maxLength={6}
+              maxLength={7}
               value={code}
               onChange={(e) => {
                 setCode(e.target.value.toUpperCase());

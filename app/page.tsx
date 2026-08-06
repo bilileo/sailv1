@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { LogOut, User, X, Trash2, Edit2, AlertCircle, CheckCircle, AlertTriangle, Calendar, ChevronDown } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
 import { FormularioClase } from './formulario/alta/FormularioClase';
 import { CatalogoClase } from './lib/attendance-types';
@@ -13,8 +13,10 @@ import { GestionPeriodos } from './gestion/GestionPeriodos/GestionPeriodos';
 import { Reportes } from './gestion/GestionReportes/Reportes';
 import { GestionGrupos } from './gestion/GestionGrupos/GestionGrupos';
 import { getWeekNumber, getTotalWeeks, getDatesOfWeek } from '../utils/calendar';
+import { Navbar } from './components/Navbar';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
+import { Suspense } from 'react';
 
 // 1. Actualizamos la interfaz para usar dayOfWeek
 interface Clase {
@@ -47,6 +49,14 @@ const getNombreDia = (dayOfWeek?: number) => {
 };
 
 export default function SailAdminDashboard() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Cargando...</div>}>
+      <SailAdminDashboardContent />
+    </Suspense>
+  );
+}
+
+function SailAdminDashboardContent() {
   const router = useRouter();
   const [usuarioActivo, setUsuarioActivo] = useState<{ id: string, name: string, role: string } | null>(null);
   const [editGrupoId, setEditGrupoId] = useState('');
@@ -61,8 +71,17 @@ export default function SailAdminDashboard() {
 
   const isMaestro = usuarioActivo?.role === 'MAESTRO';
 
-  const [activeTab, setActiveTab] = useState('Inicio');
-  const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  
+  const [activeTab, setActiveTab] = useState(tabParam || 'Inicio');
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
   const [clases, setClases] = useState<Clase[]>([]);
   const [laboratorios, setLaboratorios] = useState<Laboratorio[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
@@ -608,145 +627,24 @@ useEffect(() => {
   };
   
 
-  const opcionesNavegacion = [
-    { tipo: 'item', titulo: 'Inicio', items: ['Inicio'] },
-    { tipo: 'grupo', titulo: 'Usuarios', items: ['Administradores', 'Maestros', 'Auxiliares', 'Alumnos'] },
-    { tipo: 'grupo', titulo: 'Gestión Académica', items: ['Clases', 'Grupos', 'Periodos Escolares'] },
-    { tipo: 'grupo', titulo: 'Seguimiento', items: ['Reportes', 'Incidencias'] }
-  ];
-
-  const usuarioPuedeVerTab = (tab: string) => {
-    if (usuarioActivo?.role === 'MAESTRO') {
-      return tab === 'Inicio' || tab === 'Incidencias';
-    }
-
-    if (usuarioActivo?.role === 'AUXILIAR' && (tab === 'Administradores' || tab === 'Auxiliares')) {
-      return false;
-    }
-
-    return true;
-  };
-
-  const obtenerNotificacionesTab = (tab: string) => {
-    if (tab !== 'Incidencias') return 0;
-
-    return isMaestro
-      ? notificacionesMaestro
-      : incidencias.filter(i => i.status === 'PENDING').length;
-  };
-
   const seleccionarTab = (tab: string) => {
     setActiveTab(tab);
-    setMenuAbierto(null);
-
     if (tab === 'Incidencias' && isMaestro) {
       setResueltasVistas(misResueltasTotal);
     }
   };
 
-  const tabEstaActiva = (items: string[]) => items.includes(activeTab);
-
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-4">
-          {opcionesNavegacion.map((grupo) => {
-            const itemsVisibles = grupo.items.filter(usuarioPuedeVerTab);
-            if (itemsVisibles.length === 0) return null;
-
-            const grupoActivo = tabEstaActiva(itemsVisibles);
-            const notificacionesGrupo = itemsVisibles.reduce((total, item) => total + obtenerNotificacionesTab(item), 0);
-
-            if (grupo.tipo === 'item') {
-              const item = itemsVisibles[0];
-              const notificaciones = obtenerNotificacionesTab(item);
-
-              return (
-                <button
-                  key={grupo.titulo}
-                  onClick={() => seleccionarTab(item)}
-                  className={`text-sm font-bold transition-colors flex items-center py-4 -mb-[1px] ${activeTab === item
-                    ? 'text-black border-b-2 border-black'
-                    : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  {item}
-
-                  {notificaciones > 0 && (
-                    <span className="ml-2 flex items-center justify-center bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
-                      {notificaciones}
-                    </span>
-                  )}
-                </button>
-              );
-            }
-
-            return (
-              <div key={grupo.titulo} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setMenuAbierto(menuAbierto === grupo.titulo ? null : grupo.titulo)}
-                  className={`text-sm font-bold transition-colors flex items-center gap-1 py-4 -mb-[1px] ${grupoActivo
-                    ? 'text-black border-b-2 border-black'
-                    : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  {grupo.titulo}
-                  <ChevronDown className={`w-4 h-4 transition-transform ${menuAbierto === grupo.titulo ? 'rotate-180' : ''}`} />
-
-                  {notificacionesGrupo > 0 && (
-                    <span className="ml-1 flex items-center justify-center bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
-                      {notificacionesGrupo}
-                    </span>
-                  )}
-                </button>
-
-                {menuAbierto === grupo.titulo && (
-                  <div className="absolute left-0 top-full z-50 min-w-52 bg-white border border-gray-200 rounded-sm shadow-lg py-2">
-                    {itemsVisibles.map((item) => {
-                      const notificaciones = obtenerNotificacionesTab(item);
-
-                      return (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => seleccionarTab(item)}
-                          className={`w-full text-left px-4 py-2 text-sm font-bold flex items-center justify-between gap-3 transition-colors ${activeTab === item
-                            ? 'bg-gray-100 text-black'
-                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                            }`}
-                        >
-                          <span>{item}</span>
-
-                          {notificaciones > 0 && (
-                            <span className="flex items-center justify-center bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
-                              {notificaciones}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex items-center space-x-4 text-sm font-bold">
-          <div className="flex items-center text-gray-700">
-            <User className="w-4 h-4 mr-2" />
-            {usuarioActivo ? `${usuarioActivo.name} (${usuarioActivo.role})` : 'Cargando...'}
-          </div>
-          <button onClick={async () => {
-            await signOut({ redirect: false });
-            window.location.href = '/login';
-          }} className="text-red-500 hover:text-red-700 flex items-center space-x-1">
-            <LogOut className="w-4 h-4" />
-            <span>Cerrar Sesión</span>
-          </button>
-        </div>
-      </nav>
-
+      <Navbar
+        usuarioActivo={usuarioActivo}
+        activeTab={activeTab}
+        onTabChange={seleccionarTab}
+        notificacionesMaestro={notificacionesMaestro}
+        notificacionesPendientes={incidencias.filter(i => i.status === 'PENDING').length}
+        misResueltasTotal={misResueltasTotal}
+        onResueltasVistasUpdate={setResueltasVistas}
+      />
       <main className="max-w-7xl mx-auto p-8">
         {activeTab === 'Inicio' && (
           <div className="space-y-8">
