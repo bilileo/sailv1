@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
 
-export default function StudentLogin() {
+function StudentLoginContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,8 +31,13 @@ export default function StudentLogin() {
     }
 
     const student = await res.json();
-    sessionStorage.setItem('studentSession', JSON.stringify(student));
-    router.push('/estudiante/dashboard');
+    localStorage.setItem('studentSession', JSON.stringify(student));
+    
+    if (returnUrl) {
+      router.push(returnUrl);
+    } else {
+      router.push('/estudiante/dashboard');
+    }
   };
 
   return (
@@ -77,5 +84,13 @@ export default function StudentLogin() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function StudentLogin() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Cargando...</div>}>
+      <StudentLoginContent />
+    </Suspense>
   );
 }

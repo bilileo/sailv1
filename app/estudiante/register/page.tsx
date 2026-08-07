@@ -31,7 +31,9 @@ function StudentRegisterPageContent() {
   const searchParams = useSearchParams();
   const codeFromUrl = (searchParams.get('code') ?? '').toUpperCase();
   const classIdFromUrl = searchParams.get('classId') ?? '';
+  const classDateFromUrl = searchParams.get('date') ?? null;
   const [classId, setClassId] = useState('');
+  const [classDate, setClassDate] = useState<string | null>(null);
 
   const labDeviceTypes = deviceTypes.filter((deviceType) => deviceType.id !== 0 && deviceType.id !== 1);
 
@@ -45,7 +47,7 @@ function StudentRegisterPageContent() {
   // Validación inicial rápida usando la sesión de la pantalla anterior
   useEffect(() => {
     const rawAccess = sessionStorage.getItem('registerAccess');
-    const rawStudent = sessionStorage.getItem('studentSession');
+    const rawStudent = localStorage.getItem('studentSession');
     if (!rawAccess || !codeFromUrl || !rawStudent) {
       router.replace('/estudiante/join');
       return;
@@ -56,6 +58,9 @@ function StudentRegisterPageContent() {
       const student = JSON.parse(rawStudent);
       if (access.code !== codeFromUrl) throw new Error('Mismatch');
       setClassId(access.classId || classIdFromUrl);
+      if (access.classDate || classDateFromUrl) {
+        setClassDate(access.classDate || classDateFromUrl);
+      }
       if (student?.id) setId(student.id);
       if (student?.name) setName(student.name);
       
@@ -130,6 +135,7 @@ function StudentRegisterPageContent() {
       registeredAt: new Date().toISOString(),
       classId: resolvedClassId,
       observaciones: observaciones.trim() || undefined,
+      classDate: classDate,
     });
 
     if (result.success) {

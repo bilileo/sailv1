@@ -100,7 +100,7 @@ function SailAdminDashboardContent() {
   });
 
   const [claseSeleccionada, setClaseSeleccionada] = useState<Clase | null>(null);
-  const [claseAcciones, setClaseAcciones] = useState<Clase | null>(null);
+  const [claseAcciones, setClaseAcciones] = useState<(Clase & { fechaExacta?: string }) | null>(null);
   const [claseReporteId, setClaseReporteId] = useState('');
   const [editNombre, setEditNombre] = useState('');
   const [editAsignaturaId, setEditAsignaturaId] = useState('');
@@ -311,8 +311,8 @@ useEffect(() => {
     setEditDuracion(hF - hI);
   };
 
-  const handleAbrirAcciones = (clase: Clase) => {
-    setClaseAcciones(clase);
+  const handleAbrirAcciones = (clase: Clase, fechaExacta?: string) => {
+    setClaseAcciones({ ...clase, fechaExacta });
   };
 
   const handleCerrarAcciones = () => {
@@ -321,7 +321,11 @@ useEffect(() => {
 
   const handleEntrarClase = () => {
     if (!claseAcciones) return;
-    router.push(`/maestro/dashboard?classId=${encodeURIComponent(claseAcciones.id)}`);
+    let url = `/maestro/dashboard?classId=${encodeURIComponent(claseAcciones.id)}`;
+    if (claseAcciones.fechaExacta) {
+      url += `&classDate=${encodeURIComponent(claseAcciones.fechaExacta)}`;
+    }
+    router.push(url);
     setClaseAcciones(null);
   };
 
@@ -569,7 +573,7 @@ useEffect(() => {
 
     return (
       <button
-        onClick={() => handleAbrirAcciones(encontrada)}
+        onClick={() => handleAbrirAcciones(encontrada, diasDeSemana.find(d => d.nombre === diaFiltro)?.fechaExacta)}
         style={esHex && !esMantenimiento && !esFinalizada ? { backgroundColor: colorClase } : {}}
         className={`w-full h-full min-h-[64px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-all focus:outline-none
           ${esMantenimiento

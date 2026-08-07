@@ -101,8 +101,8 @@ const normalizeSeatDeviceTypeId = (seatDeviceTypeId?: number | string | null) =>
 
 
 // Obtiene la lista de alumnos
-export async function getStudents(classId: string): Promise<StudentRow[]> {
-  const hoy = new Date().toISOString().split('T')[0];
+export async function getStudents(classId: string, providedDate?: string | null): Promise<StudentRow[]> {
+  const hoy = providedDate || new Date().toISOString().split('T')[0];
   const { data: classDate } = await supabase
     .from('ClassDate')
     .select('id')
@@ -118,12 +118,10 @@ export async function getStudents(classId: string): Promise<StudentRow[]> {
   if (classDate?.id) {
     query = query.eq('claseId', classDate.id);
   } else {
-    // Fallback: only show attendances where checkInTime is today
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
-    query = query.gte('checkInTime', startOfToday.toISOString()).lte('checkInTime', endOfToday.toISOString());
+    // Fallback: only show attendances where checkInTime is that day
+    const startOfDay = new Date(hoy + 'T00:00:00');
+    const endOfDay = new Date(hoy + 'T23:59:59.999');
+    query = query.gte('checkInTime', startOfDay.toISOString()).lte('checkInTime', endOfDay.toISOString());
   }
 
   const { data, error } = await query.order('checkInTime', { ascending: true });
@@ -187,12 +185,26 @@ export async function updateStudentStatus(studentId: string, classId: string, st
 }
 
 // Elimina a un alumno de la lista
-export async function deleteStudent(studentId: string, classId: string) {
-  const { error } = await supabase
+export async function deleteStudent(studentId: string, classId: string, providedDate?: string | null) {
+  let query = supabase
     .from('Attendance')
     .delete()
     .eq('classSessionId', classId)
     .eq('studentId', studentId);
+
+  const hoy = providedDate || new Date().toISOString().split('T')[0];
+  const { data: classDate } = await supabase
+    .from('ClassDate')
+    .select('id')
+    .eq('idClassSession', classId)
+    .eq('fechaClase', hoy)
+    .maybeSingle();
+
+  if (classDate?.id) {
+    query = query.eq('claseId', classDate.id);
+  }
+
+  const { error } = await query;
 
   if (error) throw error;
   revalidatePath('/');
@@ -250,6 +262,7 @@ export async function registerStudent(
     deviceTypeId?: number | string | null;
     seatDeviceTypeId?: number | string | null;
     observaciones?: string;
+    classDate?: string | null;
   }
 ) {
   const classId = studentData.classId || (studentData.code ? await validateActiveCode(studentData.code) : null);
@@ -305,7 +318,7 @@ export async function registerStudent(
     }
   }
 
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = studentData.classDate || new Date().toISOString().split('T')[0];
   const { data: classDate } = await supabase
     .from('ClassDate')
     .select('id')
@@ -322,11 +335,9 @@ export async function registerStudent(
   if (classDate?.id) {
     attendanceQuery = attendanceQuery.eq('claseId', classDate.id);
   } else {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
-    attendanceQuery = attendanceQuery.gte('checkInTime', startOfToday.toISOString()).lte('checkInTime', endOfToday.toISOString());
+    const startOfDay = new Date(hoy + 'T00:00:00');
+    const endOfDay = new Date(hoy + 'T23:59:59.999');
+    attendanceQuery = attendanceQuery.gte('checkInTime', startOfDay.toISOString()).lte('checkInTime', endOfDay.toISOString());
   }
 
   const { data: existingAttendance, error: attendanceQueryError } = await attendanceQuery.maybeSingle();
@@ -354,12 +365,7 @@ export async function registerStudent(
   };
 
   if (existingAttendance?.id) {
-    const { error } = await supabase
-      .from('Attendance')
-      .update(payload as Record<string, unknown>)
-      .eq('id', existingAttendance.id);
-
-    if (error) throw error;
+    return { success: false, error: 'Ya has registrado tu asistencia para esta clase.' };
   } else {
     const { error } = await supabase
       .from('Attendance')

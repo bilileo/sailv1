@@ -9,6 +9,7 @@ import { getSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { Navbar } from '@/app/components/Navbar';
+import QRCode from 'react-qr-code';
 
 import { getCodeForLaboratory } from '@/app/lib/otpLab';
 
@@ -47,6 +48,7 @@ function TeacherDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const classId = searchParams.get('classId');
+  const classDate = searchParams.get('classDate'); // e.g. '2026-08-06'
 
   // === ESTADOS DEL COMPONENTE ===
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -235,7 +237,7 @@ useEffect(() => {
         setStudents([]);
         return;
       }
-      const data = await getStudents(String(classId));
+      const data = await getStudents(String(classId), classDate);
       setStudents(data);
     };
 
@@ -327,7 +329,7 @@ useEffect(() => {
     // 1. Actualización Optimista
     setStudents(prev => prev.filter(s => s.id !== studentId));
     // 2. Persistencia en el archivo JSON
-    await deleteStudent(studentId, String(classId));
+    await deleteStudent(studentId, String(classId), classDate);
   };
 
   const handleManualEntry = () => {
@@ -384,7 +386,7 @@ useEffect(() => {
       return;
     }
 
-    const data = await getStudents(String(classId));
+    const data = await getStudents(String(classId), classDate);
     setStudents(data);
     setManualOpen(false);
   };
@@ -467,8 +469,17 @@ useEffect(() => {
           {/* === PANEL IZQUIERDO: CÓDIGO DINÁMICO === */}
           <div className="lg:col-span-5 bg-white border border-gray-300 rounded shadow-sm p-8 flex flex-col items-center">
             <h2 className="text-xl mb-6 text-black font-medium text-center">Escanear o ingresa codigo</h2>
-            <div className="mb-6 relative">
-              <QrCode size={160} strokeWidth={1.5} className="text-black" />
+            <div className="mb-6 relative flex justify-center bg-white p-2 rounded">
+              {currentCode !== '------' ? (
+                <QRCode
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/estudiante/join?code=${currentCode}${classDate ? `&date=${classDate}` : ''}`}
+                  size={160}
+                />
+              ) : (
+                <div style={{ width: 160, height: 160 }} className="flex items-center justify-center bg-gray-100 text-gray-400 rounded">
+                  <QrCode size={64} strokeWidth={1.5} />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col items-center w-full max-w-50">

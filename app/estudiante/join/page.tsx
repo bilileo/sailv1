@@ -1,28 +1,47 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { KeyRound, ArrowRight } from 'lucide-react';
 import { validateActiveCode } from '../../maestro/dashboard/actions'; // Ajusta la ruta si moviste actions.ts
 
-export default function JoinClassPage() {
-  const [code, setCode] = useState('');
+function JoinClassPageContent() {
+  const searchParams = useSearchParams();
+  const urlCode = searchParams.get('code');
+  const urlDate = searchParams.get('date');
+  const [code, setCode] = useState(urlCode || '');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const session = sessionStorage.getItem('studentSession');
-    if (!session) {
-      router.replace('/estudiante/login');
-    }
-  }, [router]);
+  const hasAutoSubmitted = useRef(false);
 
-  const handleJoin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    const session = localStorage.getItem('studentSession');
+    if (!session) {
+      let returnUrl = '/estudiante/join';
+      if (urlCode) {
+        returnUrl += `?code=${urlCode}`;
+        if (urlDate) returnUrl += `&date=${urlDate}`;
+      }
+      router.replace(`/estudiante/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+    } else if (urlCode && !hasAutoSubmitted.current) {
+      hasAutoSubmitted.current = true;
+      submitCode(urlCode);
+    }
+  }, [router, urlCode]);
+
+  useEffect(() => {
+    if (urlCode) {
+      setCode(urlCode.toUpperCase());
+    }
+  }, [urlCode]);
+
+  const submitCode = async (codeToSubmit: string) => {
     setIsLoading(true);
 
-    const normalizedCode = code.trim().toUpperCase();
+    const normalizedCode = codeToSubmit.trim().toUpperCase();
 
     if (normalizedCode.length < 6) {
       setIsLoading(false);
@@ -35,6 +54,7 @@ export default function JoinClassPage() {
     if (!classId) {
       setError('Código inválido o expirado. Espera el nuevo código del profesor.');
       setIsLoading(false);
+      hasAutoSubmitted.current = false; // allow trying again
       return;
     }
     
@@ -47,11 +67,21 @@ export default function JoinClassPage() {
       code: normalizedCode, 
       classId,
       className: classInfo?.className || 'Clase Desconocida',
-      groupName: classInfo?.groupName || 'Sin Grupo'
+      groupName: classInfo?.groupName || 'Sin Grupo',
+      classDate: urlDate || null
     }));
     setError('');
 
-    router.push(`/estudiante/register?code=${normalizedCode}&classId=${encodeURIComponent(classId)}`);
+    let redirectUrl = `/estudiante/register?code=${normalizedCode}&classId=${encodeURIComponent(classId)}`;
+    if (urlDate) {
+      redirectUrl += `&date=${urlDate}`;
+    }
+    router.push(redirectUrl);
+  };
+
+  const handleJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    submitCode(code);
   };
 
   return (
@@ -94,5 +124,13 @@ export default function JoinClassPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function JoinClassPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">Cargando...</div>}>
+      <JoinClassPageContent />
+    </Suspense>
   );
 }
