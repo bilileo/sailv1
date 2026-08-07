@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { BarChart2, BookOpen, User, Download, Search } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { BarChart2, BookOpen, User, Download, Search, Calendar } from 'lucide-react';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const XS = require('xlsx-js-style') as typeof import('xlsx');
 
 interface ClaseReporte {
   id: string;
@@ -28,6 +29,7 @@ interface RegistroAsistencia {
   deviceType: string;
   observaciones?: string;
   clase: string;
+  color?: string;
   laboratorio: string;
 }
 
@@ -37,6 +39,40 @@ interface RegistroSemana {
   status: string;
   laboratorioId: string | null;
   laboratorio: string | null;
+}
+
+interface AsistenciaPeriodo {
+  id: number;
+  status: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  observaciones: string | null;
+  alumno: string;
+  email: string;
+  deviceType: string;
+  fechaClase: string | null;
+}
+
+interface ClasePeriodo {
+  id: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  asignatura: string;
+  materiaCode: string;
+  color?: string | null;
+  laboratorio: string;
+  maestro: string;
+  grupo: string;
+  asistencias: AsistenciaPeriodo[];
+}
+
+interface Periodo {
+  id: number;
+  nombre: string;
+  fechaInicio: string;
+  fechaFin: string;
+  activo: boolean;
 }
 
 const ESTADO: Record<string, { label: string; cls: string }> = {
@@ -106,6 +142,113 @@ const SearchInput = ({ value, onChange, placeholder }: SearchInputProps) => (
   </div>
 );
 
+// ── Excel export helpers ────────────────────────────────────────────────────
+
+const THIN = {
+  top:    { style: 'thin' as const, color: { rgb: 'D1D5DB' } },
+  bottom: { style: 'thin' as const, color: { rgb: 'D1D5DB' } },
+  left:   { style: 'thin' as const, color: { rgb: 'D1D5DB' } },
+  right:  { style: 'thin' as const, color: { rgb: 'D1D5DB' } },
+};
+
+const STATUS_FILL_XS: Record<string, string> = {
+  PRESENT: 'D1FAE5', LATE: 'FEF3C7', ABSENT: 'FEE2E2', LEFT_EARLY: 'FFEDD5',
+};
+
+const xs = {
+  header: {
+    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 },
+    fill: { patternType: 'solid' as const, fgColor: { rgb: '0B6E3F' } },
+    alignment: { horizontal: 'center' as const, vertical: 'center' as const },
+    border: THIN,
+  },
+  section: {
+    font: { bold: true, color: { rgb: '064E2E' }, sz: 10 },
+    fill: { patternType: 'solid' as const, fgColor: { rgb: 'DCFCE7' } },
+    alignment: { horizontal: 'left' as const, vertical: 'center' as const },
+    border: THIN,
+  },
+  sectionEmpty: {
+    fill: { patternType: 'solid' as const, fgColor: { rgb: 'DCFCE7' } },
+    border: THIN,
+  },
+  data: (even: boolean) => ({
+    font: { sz: 10, color: { rgb: '1F2937' } },
+    fill: { patternType: 'solid' as const, fgColor: { rgb: even ? 'FFFFFF' : 'F9FAFB' } },
+    alignment: { horizontal: 'left' as const, vertical: 'center' as const },
+    border: THIN,
+  }),
+  num: (even: boolean) => ({
+    font: { sz: 10, color: { rgb: '1F2937' } },
+    fill: { patternType: 'solid' as const, fgColor: { rgb: even ? 'FFFFFF' : 'F9FAFB' } },
+    alignment: { horizontal: 'center' as const, vertical: 'center' as const },
+    border: THIN,
+  }),
+  status: (s: string) => ({
+    font: { bold: true, sz: 10, color: { rgb: '064E2E' } },
+    fill: { patternType: 'solid' as const, fgColor: { rgb: STATUS_FILL_XS[s] ?? 'F3F4F6' } },
+    alignment: { horizontal: 'center' as const, vertical: 'center' as const },
+    border: THIN,
+  }),
+  totalLabel: {
+    font: { bold: true, sz: 10, color: { rgb: '065F46' } },
+    fill: { patternType: 'solid' as const, fgColor: { rgb: 'D1FAE5' } },
+    alignment: { horizontal: 'left' as const, vertical: 'center' as const },
+    border: THIN,
+  },
+  totalNum: {
+    font: { bold: true, sz: 10, color: { rgb: '065F46' } },
+    fill: { patternType: 'solid' as const, fgColor: { rgb: 'D1FAE5' } },
+    alignment: { horizontal: 'center' as const, vertical: 'center' as const },
+    border: THIN,
+  },
+  promedioLabel: {
+    font: { bold: true, sz: 10, color: { rgb: '1E40AF' } },
+    fill: { patternType: 'solid' as const, fgColor: { rgb: 'DBEAFE' } },
+    alignment: { horizontal: 'left' as const, vertical: 'center' as const },
+    border: THIN,
+  },
+  promedioNum: {
+    font: { bold: true, sz: 10, color: { rgb: '1E40AF' } },
+    fill: { patternType: 'solid' as const, fgColor: { rgb: 'DBEAFE' } },
+    alignment: { horizontal: 'center' as const, vertical: 'center' as const },
+    border: THIN,
+  },
+  empty: {
+    fill: { patternType: 'solid' as const, fgColor: { rgb: 'FFFFFF' } },
+    border: THIN,
+  },
+};
+
+type XsCell = { v: string | number; t: 's' | 'n'; s: object };
+
+function xc(value: string | number | null | undefined, style: object): XsCell {
+  const v = value ?? '';
+  return { v, t: typeof v === 'number' ? 'n' : 's', s: style };
+}
+
+function buildSheet(
+  rows: XsCell[][],
+  colWidths: number[],
+  merges?: { s: { r: number; c: number }; e: { r: number; c: number } }[],
+) {
+  const ws: Record<string, unknown> = {};
+  let maxCol = 0;
+  rows.forEach((row, ri) => {
+    row.forEach((cell, ci) => {
+      ws[XS.utils.encode_cell({ r: ri, c: ci })] = cell;
+      maxCol = Math.max(maxCol, ci);
+    });
+  });
+  ws['!ref'] = XS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 1, c: maxCol } });
+  ws['!cols'] = colWidths.map(w => ({ wch: w }));
+  ws['!rows'] = rows.map(() => ({ hpt: 18 }));
+  if (merges?.length) ws['!merges'] = merges;
+  return ws;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
 export function Reportes({
   clases,
   laboratorios,
@@ -115,10 +258,111 @@ export function Reportes({
   laboratorios: Laboratorio[];
   claseIdInicial?: string;
 }) {
-  const [subTab, setSubTab] = useState<'clase' | 'maestro' | 'semana'>('clase');
+  const [subTab, setSubTab] = useState<'clase' | 'maestro' | 'semana' | 'periodo'>('clase');
   const [busquedaResultadosClase, setBusquedaResultadosClase] = useState('');
   const [busquedaResultadosMaestro, setBusquedaResultadosMaestro] = useState('');
   const [busquedaSemana, setBusquedaSemana] = useState('');
+
+  // ── Por Periodo ────────────────────────────────────────────────────────────
+  const [periodos, setPeriodos] = useState<Periodo[]>([]);
+  const [periodoId, setPeriodoId] = useState('');
+  const [clasesPeriodo, setClasesPeriodo] = useState<ClasePeriodo[]>([]);
+  const [cargandoPeriodo, setCargandoPeriodo] = useState(false);
+  const [periodoCargado, setPeriodoCargado] = useState(false);
+  const [expandedClases, setExpandedClases] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    fetch('/api/periodos')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setPeriodos(d); })
+      .catch(() => {});
+  }, []);
+
+  const cargarPeriodo = async () => {
+    if (!periodoId) return;
+    setCargandoPeriodo(true);
+    setPeriodoCargado(false);
+    try {
+      const res = await fetch(`/api/reportes/periodo?periodoId=${periodoId}`);
+      const d = await res.json();
+      if (Array.isArray(d)) {
+        setClasesPeriodo(d);
+        setExpandedClases(new Set(d.map((c: ClasePeriodo) => c.id)));
+      }
+      setPeriodoCargado(true);
+    } catch {
+      setClasesPeriodo([]);
+    } finally {
+      setCargandoPeriodo(false);
+    }
+  };
+
+  const toggleClase = (id: number) => {
+    setExpandedClases(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const formatHora = (t: string) => t?.slice(0, 5) ?? '—';
+
+  const formatFechaSolo = (iso: string | null) => {
+    if (!iso) return '—';
+    const d = new Date(iso + (iso.includes('T') ? '' : 'T12:00:00'));
+    return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  const exportarPeriodo = () => {
+    const periodo = periodos.find(p => p.id.toString() === periodoId);
+    const COLS = [30, 28, 14, 16, 16, 32];
+    const NUM_COLS = 6;
+    const headers = ['Alumno', 'Email', 'Fecha de Clase', 'Estado', 'Dispositivo', 'Observaciones'];
+    const rows: XsCell[][] = [headers.map(h => xc(h, xs.header))];
+    const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
+    let dataIdx = 0;
+
+    for (const clase of clasesPeriodo) {
+      const label = [
+        clase.asignatura,
+        clase.materiaCode ? `(${clase.materiaCode})` : '',
+        clase.grupo ? `Gpo. ${clase.grupo}` : '',
+        '|', clase.maestro,
+        '|', clase.laboratorio,
+        '|', getNombreDia(clase.dayOfWeek),
+        `${formatHora(clase.startTime)}–${formatHora(clase.endTime)}`,
+      ].filter(Boolean).join(' ');
+
+      const secRow = rows.length;
+      rows.push([xc(label, xs.section), ...Array(NUM_COLS - 1).fill(xc('', xs.sectionEmpty))]);
+      merges.push({ s: { r: secRow, c: 0 }, e: { r: secRow, c: NUM_COLS - 1 } });
+
+      if (clase.asistencias.length === 0) {
+        rows.push([xc('(Sin registros)', xs.data(true)), ...Array(NUM_COLS - 1).fill(xc('', xs.data(true)))]);
+      } else {
+        for (const a of clase.asistencias) {
+          const even = dataIdx % 2 === 0;
+          rows.push([
+            xc(a.alumno,                                       xs.data(even)),
+            xc(a.email,                                        xs.data(even)),
+            xc(formatFechaSolo(a.fechaClase ?? a.checkInTime), xs.data(even)),
+            xc(ESTADO[a.status]?.label ?? a.status,            xs.status(a.status)),
+            xc(a.deviceType,                                   xs.data(even)),
+            xc(a.observaciones ?? '—',                         xs.data(even)),
+          ]);
+          dataIdx++;
+        }
+      }
+      rows.push(Array(NUM_COLS).fill(xc('', xs.empty)));
+    }
+
+    const ws = buildSheet(rows, COLS, merges);
+    const wb = XS.utils.book_new();
+    XS.utils.book_append_sheet(wb, ws, 'Reporte Periodo');
+    const nombre = sanitizarNombreArchivo(periodo?.nombre ?? 'Periodo');
+    XS.writeFile(wb, `Reporte_Periodo_${nombre}.xlsx`);
+  };
 
   // ── Por Clase ──────────────────────────────────────────────────────────────
   const [claseId, setClaseId] = useState('');
@@ -265,85 +509,173 @@ export function Reportes({
   // ── Exportaciones Excel ────────────────────────────────────────────────────
 
   const exportarClase = () => {
-    const clase = clases.find(c => c.id === claseId);
-    const filas = asistenciasClaseFiltradas.map(r => ({
-      'Alumno': r.alumno || '—',
-      'Estado': ESTADO[r.status]?.label || r.status,
-      'Fecha de Registro': formatFecha(r.checkInTime),
-      'Dispositivo': r.deviceType || '—',
-      'Observaciones': r.observaciones || '—',
-    }));
-    const ws = XLSX.utils.json_to_sheet(filas);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Asistencias');
+    const clase = clases.find(c => String(c.id) === String(claseId));
+    const COLS = [30, 18, 22, 18, 38];
+    const NUM_COLS = 5;
+    const titulo = clase
+      ? `${clase.nombre}${clase.grupo ? ` - Gpo. ${clase.grupo}` : ''} | ${clase.laboratorio} | ${getNombreDia(clase.dayOfWeek)} ${clase.horario}`
+      : 'Clase';
+    const headers = ['Alumno', 'Estado', 'Fecha de Registro', 'Dispositivo', 'Observaciones'];
+    const rows: XsCell[][] = [
+      [xc(titulo, xs.section), ...Array(NUM_COLS - 1).fill(xc('', xs.sectionEmpty))],
+      headers.map(h => xc(h, xs.header)),
+      ...asistenciasClaseFiltradas.map((r, i) => [
+        xc(r.alumno || '—',            xs.data(i % 2 === 0)),
+        xc(ESTADO[r.status]?.label || r.status, xs.status(r.status)),
+        xc(formatFecha(r.checkInTime), xs.data(i % 2 === 0)),
+        xc(r.deviceType || '—',        xs.data(i % 2 === 0)),
+        xc(r.observaciones || '—',     xs.data(i % 2 === 0)),
+      ]),
+    ];
+    const ws = buildSheet(rows, COLS, [{ s: { r: 0, c: 0 }, e: { r: 0, c: NUM_COLS - 1 } }]);
+    const wb = XS.utils.book_new();
+    XS.utils.book_append_sheet(wb, ws, 'Asistencias');
     const nombre = clase
       ? sanitizarNombreArchivo(`${clase.nombre}${clase.grupo ? `_Gpo${clase.grupo}` : ''}`)
       : 'Clase';
-    XLSX.writeFile(wb, `Reporte_Clase_${nombre}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XS.writeFile(wb, `Reporte_Clase_${nombre}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const exportarMaestro = () => {
-    const maestro = maestros.find(m => m.id.toString() === maestroId);
-    const filas: Record<string, string | number>[] = [];
+    const maestro = maestros.find(m => String(m.id) === String(maestroId));
+    const COLS = [30, 18, 22, 18, 38];
+    const NUM_COLS = 5;
+    const headers = ['Alumno', 'Estado', 'Fecha de Registro', 'Dispositivo', 'Observaciones'];
+    const rows: XsCell[][] = [headers.map(h => xc(h, xs.header))];
+    const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
+    let dataIdx = 0;
 
     for (const [sessionId, registros] of Object.entries(gruposAsistenciaMaestroFiltrados)) {
       const clase = clasesPorId[sessionId];
-      const claseNombre = clase
+      const label = clase
         ? `${clase.nombre}${clase.grupo ? ` - Gpo. ${clase.grupo}` : ''} | ${clase.laboratorio} | ${getNombreDia(clase.dayOfWeek)} ${clase.horario}`
-        : `Sesión ${sessionId}`;
+        : `${registros[0]?.clase ?? 'Clase'} | ${registros[0]?.laboratorio ?? '—'}`;
+      const secRow = rows.length;
+      rows.push([xc(label, xs.section), ...Array(NUM_COLS - 1).fill(xc('', xs.sectionEmpty))]);
+      merges.push({ s: { r: secRow, c: 0 }, e: { r: secRow, c: NUM_COLS - 1 } });
 
-      filas.push({ 'Alumno': `▸ ${claseNombre}`, 'Estado': '', 'Fecha de Registro': '', 'Dispositivo': '', 'Observaciones': '' });
       for (const r of registros) {
-        filas.push({
-          'Alumno': r.alumno || '—',
-          'Estado': ESTADO[r.status]?.label || r.status,
-          'Fecha de Registro': formatFecha(r.checkInTime),
-          'Dispositivo': r.deviceType || '—',
-          'Observaciones': r.observaciones || '—',
-        });
+        const even = dataIdx % 2 === 0;
+        rows.push([
+          xc(r.alumno || '—',            xs.data(even)),
+          xc(ESTADO[r.status]?.label || r.status, xs.status(r.status)),
+          xc(formatFecha(r.checkInTime), xs.data(even)),
+          xc(r.deviceType || '—',        xs.data(even)),
+          xc(r.observaciones || '—',     xs.data(even)),
+        ]);
+        dataIdx++;
       }
-      filas.push({ 'Alumno': '', 'Estado': '', 'Fecha de Registro': '', 'Dispositivo': '', 'Observaciones': '' });
+      rows.push(Array(NUM_COLS).fill(xc('', xs.empty)));
     }
 
-    const ws = XLSX.utils.json_to_sheet(filas);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Asistencias por Maestro');
+    const ws = buildSheet(rows, COLS, merges);
+    const wb = XS.utils.book_new();
+    XS.utils.book_append_sheet(wb, ws, 'Asistencias por Maestro');
     const nombre = sanitizarNombreArchivo(maestro?.name || 'Maestro');
-    XLSX.writeFile(wb, `Reporte_Maestro_${nombre}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XS.writeFile(wb, `Reporte_Maestro_${nombre}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const exportarSemana = () => {
-    const encabezado = [
-      'Laboratorio',
-      ...fechas.map(f => {
-        const d = new Date(f + 'T12:00:00');
-        return `${DIAS[d.getDay()]} ${d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}`;
+  const exportarSemana = async () => {
+    // ── Hoja 1: Resumen por laboratorio ──────────────────────────────────────
+    const dateLabels = fechas.map(f => {
+      const d = new Date(f + 'T12:00:00');
+      return `${DIAS[d.getDay()]} ${d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}`;
+    });
+    const headers = ['Laboratorio', ...dateLabels, 'Total', 'Promedio'];
+    const COLS = [22, ...fechas.map(() => 12), 10, 10];
+
+    const rowsResumen: XsCell[][] = [
+      headers.map(h => xc(h, xs.header)),
+      ...laboratorios.map((lab, i) => {
+        const even = i % 2 === 0;
+        return [
+          xc(lab.name,           xs.data(even)),
+          ...fechas.map(f => xc(conteos[lab.name]?.[f] ?? 0, xs.num(even))),
+          xc(totalsPorLab[i],    xs.totalNum),
+          xc(promediosPorLab[i], xs.promedioNum),
+        ];
       }),
-      'Total',
-      'Promedio',
+      [
+        xc('Total',         xs.totalLabel),
+        ...totalsPorFecha.map(t => xc(t, xs.totalNum)),
+        xc(granTotal,       xs.totalNum),
+        xc(cornerTotalProm, xs.promedioNum),
+      ],
+      [
+        xc('Promedio',        xs.promedioLabel),
+        ...promediosPorFecha.map(p => xc(p, xs.promedioNum)),
+        xc(cornerPromTotal,   xs.promedioNum),
+        xc(cornerPromProm,    xs.promedioNum),
+      ],
     ];
 
-    const filas: (string | number)[][] = [
-      encabezado,
-      ...laboratorios.map((lab, i) => [
-        lab.name,
-        ...fechas.map(f => conteos[lab.name]?.[f] ?? 0),
-        totalsPorLab[i],
-        promediosPorLab[i],
-      ]),
-      ['Total', ...totalsPorFecha, granTotal, cornerTotalProm],
-      ['Promedio', ...promediosPorFecha, cornerPromTotal, cornerPromProm],
-    ];
+    const wb = XS.utils.book_new();
+    XS.utils.book_append_sheet(wb, buildSheet(rowsResumen, COLS), 'Resumen Semanal');
 
-    const ws = XLSX.utils.aoa_to_sheet(filas);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Resumen Semanal');
-    XLSX.writeFile(wb, `Reporte_Semana_${fechaInicio}_al_${fechaFin}.xlsx`);
+    // ── Hoja 2: Detalle de clases y asistencias ───────────────────────────────
+    try {
+      const res = await fetch(`/api/reportes?fechaInicio=${fechaInicio}&fechaFin=${fechaFin}&detalle=true`);
+      const clases: {
+        asignatura: string; maestro: string; laboratorio: string;
+        dayOfWeek: number; startTime: string; endTime: string; grupo: string;
+        asistencias: { alumno: string; email: string; fechaClase: string | null;
+          status: string; deviceType: string; observaciones: string | null }[];
+      }[] = await res.json();
+
+      if (Array.isArray(clases) && clases.length > 0) {
+        const NUM_COLS = 6;
+        const headersDetalle = ['Alumno', 'Email', 'Fecha de Clase', 'Estado', 'Dispositivo', 'Observaciones'];
+        const COLS_D = [30, 28, 14, 16, 16, 32];
+        const rows: XsCell[][] = [headersDetalle.map(h => xc(h, xs.header))];
+        const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
+        let dataIdx = 0;
+
+        for (const clase of clases) {
+          const label = [
+            clase.asignatura,
+            clase.grupo ? `Gpo. ${clase.grupo}` : '',
+            '|', clase.maestro,
+            '|', clase.laboratorio,
+            '|', getNombreDia(clase.dayOfWeek),
+            `${clase.startTime?.slice(0, 5) ?? ''}–${clase.endTime?.slice(0, 5) ?? ''}`,
+          ].filter(Boolean).join(' ');
+
+          const secRow = rows.length;
+          rows.push([xc(label, xs.section), ...Array(NUM_COLS - 1).fill(xc('', xs.sectionEmpty))]);
+          merges.push({ s: { r: secRow, c: 0 }, e: { r: secRow, c: NUM_COLS - 1 } });
+
+          if (clase.asistencias.length === 0) {
+            rows.push([xc('(Sin registros)', xs.data(true)), ...Array(NUM_COLS - 1).fill(xc('', xs.data(true)))]);
+          } else {
+            for (const a of clase.asistencias) {
+              const even = dataIdx % 2 === 0;
+              const fecha = a.fechaClase
+                ? new Date(a.fechaClase + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                : a.fechaClase ?? '—';
+              rows.push([
+                xc(a.alumno,                          xs.data(even)),
+                xc(a.email,                           xs.data(even)),
+                xc(fecha,                             xs.data(even)),
+                xc(ESTADO[a.status]?.label ?? a.status, xs.status(a.status)),
+                xc(a.deviceType,                      xs.data(even)),
+                xc(a.observaciones ?? '—',            xs.data(even)),
+              ]);
+              dataIdx++;
+            }
+          }
+          rows.push(Array(NUM_COLS).fill(xc('', xs.empty)));
+        }
+
+        XS.utils.book_append_sheet(wb, buildSheet(rows, COLS_D, merges), 'Detalle por Clase');
+      }
+    } catch { /* si el detalle falla, se exporta solo el resumen */ }
+
+    XS.writeFile(wb, `Reporte_Semana_${fechaInicio}_al_${fechaFin}.xlsx`);
   };
 
   // ── Helpers UI ─────────────────────────────────────────────────────────────
 
-  const BtnExportar = ({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) => (
+  const BtnExportar = ({ onClick, disabled }: { onClick: () => void | Promise<void>; disabled?: boolean }) => (
     <button
       onClick={onClick}
       disabled={disabled}
@@ -355,9 +687,10 @@ export function Reportes({
   );
 
   const SUB_TABS = [
-    { id: 'clase'   as const, label: 'Por Clase',   Icon: BookOpen },
-    { id: 'maestro' as const, label: 'Por Maestro', Icon: User },
-    { id: 'semana'  as const, label: 'Por Semana',  Icon: BarChart2 },
+    { id: 'clase'   as const, label: 'Por Clase',    Icon: BookOpen },
+    { id: 'maestro' as const, label: 'Por Maestro',  Icon: User },
+    { id: 'semana'  as const, label: 'Por Semana',   Icon: BarChart2 },
+    { id: 'periodo' as const, label: 'Por Periodo',  Icon: Calendar },
   ];
 
   const TablaAsistencia = ({ registros }: { registros: RegistroAsistencia[] }) => (
@@ -551,6 +884,124 @@ export function Reportes({
             {!maestroId && (
               <div className="text-center py-8 text-gray-400 text-sm border border-dashed border-gray-300 rounded-sm">
                 Selecciona un maestro para ver todos sus registros de asistencia.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Tab: Por Periodo ── */}
+        {subTab === 'periodo' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="max-w-sm w-full">
+                <label className="block text-sm font-bold text-gray-700 mb-1">Selecciona un periodo escolar</label>
+                <select
+                  value={periodoId}
+                  onChange={e => {
+                    setPeriodoId(e.target.value);
+                    setPeriodoCargado(false);
+                    setClasesPeriodo([]);
+                  }}
+                  className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black outline-none"
+                >
+                  <option value="">-- Seleccionar periodo --</option>
+                  {periodos.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}{p.activo ? ' (activo)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={cargarPeriodo}
+                disabled={cargandoPeriodo || !periodoId}
+                className="px-4 py-2 text-sm font-bold text-white bg-[#0b6e3f] hover:bg-green-800 rounded-sm transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+              >
+                {cargandoPeriodo
+                  ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <Calendar className="w-4 h-4" />}
+                {cargandoPeriodo ? 'Cargando...' : 'Generar reporte'}
+              </button>
+              {periodoCargado && clasesPeriodo.length > 0 && (
+                <BtnExportar onClick={exportarPeriodo} />
+              )}
+            </div>
+
+            {!periodoId && !cargandoPeriodo && (
+              <div className="text-center py-8 text-gray-400 text-sm border border-dashed border-gray-300 rounded-sm">
+                Selecciona un periodo para ver todas sus clases y asistencias.
+              </div>
+            )}
+
+            {periodoCargado && clasesPeriodo.length === 0 && (
+              <p className="text-sm text-gray-500 py-4">No hay clases registradas en este periodo.</p>
+            )}
+
+            {periodoCargado && clasesPeriodo.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500 font-medium">
+                  {clasesPeriodo.length} clase(s) —{' '}
+                  {clasesPeriodo.reduce((s, c) => s + c.asistencias.length, 0)} registros de asistencia en total
+                </p>
+                {clasesPeriodo.map(clase => {
+                  const isExpanded = expandedClases.has(clase.id);
+                  return (
+                    <div key={clase.id} className="border rounded-sm overflow-hidden">
+                      <button
+                        onClick={() => toggleClase(clase.id)}
+                        className="w-full flex items-center justify-between bg-[#0b6e3f] text-white px-4 py-2.5 text-sm font-bold text-left hover:bg-green-800 transition-colors"
+                      >
+                        <span>
+                          {clase.asignatura}
+                          {clase.materiaCode ? ` (${clase.materiaCode})` : ''}
+                          {clase.grupo ? ` — Gpo. ${clase.grupo}` : ''}
+                          {' | '}{clase.maestro}
+                          {' | '}{clase.laboratorio}
+                          {' | '}{getNombreDia(clase.dayOfWeek)} {formatHora(clase.startTime)}–{formatHora(clase.endTime)}
+                        </span>
+                        <span className="ml-4 text-white/70 text-xs font-medium whitespace-nowrap">
+                          {clase.asistencias.length} registros {isExpanded ? '▲' : '▼'}
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        clase.asistencias.length === 0 ? (
+                          <p className="px-4 py-3 text-sm text-gray-400">Sin registros de asistencia.</p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-100 border-b">
+                                <tr>
+                                  {['Alumno', 'Email', 'Fecha de Clase', 'Estado', 'Dispositivo', 'Observaciones'].map(h => (
+                                    <th key={h} className="px-4 py-2 text-left text-xs font-black text-gray-700 uppercase whitespace-nowrap">{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y">
+                                {clase.asistencias.map(a => (
+                                  <tr key={a.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2 font-medium text-gray-800 whitespace-nowrap">{a.alumno}</td>
+                                    <td className="px-4 py-2 text-gray-500 text-xs">{a.email}</td>
+                                    <td className="px-4 py-2 text-gray-600 whitespace-nowrap">
+                                      {formatFechaSolo(a.fechaClase ?? a.checkInTime)}
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${ESTADO[a.status]?.cls ?? 'bg-gray-100 text-gray-800'}`}>
+                                        {ESTADO[a.status]?.label ?? a.status}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-600">{a.deviceType}</td>
+                                    <td className="px-4 py-2 text-gray-600 max-w-xs truncate">{a.observaciones ?? '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

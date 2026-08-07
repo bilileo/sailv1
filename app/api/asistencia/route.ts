@@ -46,7 +46,7 @@ export async function GET(request: Request) {
         observaciones,
         Student ( name, email ),
         DeviceType ( name ),
-        ClassSession ( Asignatura ( name ), Laboratory ( name ) )
+        ClassSession ( Asignatura ( name, color ), Laboratory ( name ) )
       `)
       .order('checkInTime', { ascending: false });
 
@@ -73,6 +73,7 @@ export async function GET(request: Request) {
         alumno: (row['Student'] as Record<string, unknown> | undefined)?.['name'],
         email: (row['Student'] as Record<string, unknown> | undefined)?.['email'],
         clase: ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Asignatura'] as Record<string, unknown> | undefined)?.['name'],
+        color: (((row['ClassSession'] as Record<string, unknown> | undefined)?.['Asignatura'] as Record<string, unknown> | undefined)?.['color'] as string | null) || '#3B82F6',
         laboratorio: ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Laboratory'] as Record<string, unknown> | undefined)?.['name']
       };
     });
