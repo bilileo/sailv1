@@ -21,7 +21,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const sessionData = sessionStorage.getItem('studentSession');
+    const sessionData = localStorage.getItem('studentSession');
     if (!sessionData) {
       router.push('/estudiante/login');
       return;
@@ -90,7 +90,7 @@ export default function StudentDashboard() {
           </div>
           <button
             onClick={() => {
-              sessionStorage.removeItem('studentSession');
+              localStorage.removeItem('studentSession');
               router.push('/estudiante/login');
             }}
             className="text-red-500 hover:text-red-700 flex items-center space-x-1"
