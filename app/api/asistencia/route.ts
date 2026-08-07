@@ -44,7 +44,7 @@ export async function GET(request: Request) {
         checkInTime,
         checkOutTime,
         observaciones,
-        Student ( name, email ),
+        Student ( id, name, email ),
         DeviceType ( name ),
         ClassSession ( Asignatura ( name, color ), Laboratory ( name ) )
       `)
@@ -71,6 +71,7 @@ export async function GET(request: Request) {
         checkOutTime: row['checkOutTime'],
         observaciones: row['observaciones'],
         alumno: (row['Student'] as Record<string, unknown> | undefined)?.['name'],
+        matricula: (row['Student'] as Record<string, unknown> | undefined)?.['id'] ?? row['studentId'],
         email: (row['Student'] as Record<string, unknown> | undefined)?.['email'],
         clase: ((row['ClassSession'] as Record<string, unknown> | undefined)?.['Asignatura'] as Record<string, unknown> | undefined)?.['name'],
         color: (((row['ClassSession'] as Record<string, unknown> | undefined)?.['Asignatura'] as Record<string, unknown> | undefined)?.['color'] as string | null) || '#3B82F6',

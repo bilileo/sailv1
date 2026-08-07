@@ -22,6 +22,8 @@ interface RegistroAsistencia {
   id: string;
   classSessionId: string;
   alumno: string;
+  matricula?: string | number;
+  studentId?: string | number;
   email: string;
   status: string;
   checkInTime: string;
@@ -48,6 +50,7 @@ interface AsistenciaPeriodo {
   checkOutTime: string | null;
   observaciones: string | null;
   alumno: string;
+  matricula: string;
   email: string;
   deviceType: string;
   fechaClase: string | null;
@@ -316,9 +319,9 @@ export function Reportes({
 
   const exportarPeriodo = () => {
     const periodo = periodos.find(p => p.id.toString() === periodoId);
-    const COLS = [30, 28, 14, 16, 16, 32];
-    const NUM_COLS = 6;
-    const headers = ['Alumno', 'Email', 'Fecha de Clase', 'Estado', 'Dispositivo', 'Observaciones'];
+    const COLS = [18, 30, 28, 14, 16, 16, 32];
+    const NUM_COLS = 7;
+    const headers = ['Matrícula', 'Alumno', 'Email', 'Fecha de Clase', 'Estado', 'Dispositivo', 'Observaciones'];
     const rows: XsCell[][] = [headers.map(h => xc(h, xs.header))];
     const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
     let dataIdx = 0;
@@ -344,6 +347,7 @@ export function Reportes({
         for (const a of clase.asistencias) {
           const even = dataIdx % 2 === 0;
           rows.push([
+            xc(a.matricula || '—',                            xs.data(even)),
             xc(a.alumno,                                       xs.data(even)),
             xc(a.email,                                        xs.data(even)),
             xc(formatFechaSolo(a.fechaClase ?? a.checkInTime), xs.data(even)),
@@ -475,6 +479,8 @@ export function Reportes({
   const filtrarRegistroAsistencia = (busqueda: string, registro: RegistroAsistencia) =>
     coincideBusqueda(busqueda, [
       registro.alumno,
+      registro.matricula,
+      registro.studentId,
       registro.email,
       ESTADO[registro.status]?.label,
       registro.status,
@@ -510,16 +516,17 @@ export function Reportes({
 
   const exportarClase = () => {
     const clase = clases.find(c => String(c.id) === String(claseId));
-    const COLS = [30, 18, 22, 18, 38];
-    const NUM_COLS = 5;
+    const COLS = [18, 30, 18, 22, 18, 38];
+    const NUM_COLS = 6;
     const titulo = clase
       ? `${clase.nombre}${clase.grupo ? ` - Gpo. ${clase.grupo}` : ''} | ${clase.laboratorio} | ${getNombreDia(clase.dayOfWeek)} ${clase.horario}`
       : 'Clase';
-    const headers = ['Alumno', 'Estado', 'Fecha de Registro', 'Dispositivo', 'Observaciones'];
+    const headers = ['Matrícula', 'Alumno', 'Estado', 'Fecha de Registro', 'Dispositivo', 'Observaciones'];
     const rows: XsCell[][] = [
       [xc(titulo, xs.section), ...Array(NUM_COLS - 1).fill(xc('', xs.sectionEmpty))],
       headers.map(h => xc(h, xs.header)),
       ...asistenciasClaseFiltradas.map((r, i) => [
+        xc(r.matricula ?? r.studentId ?? '—', xs.data(i % 2 === 0)),
         xc(r.alumno || '—',            xs.data(i % 2 === 0)),
         xc(ESTADO[r.status]?.label || r.status, xs.status(r.status)),
         xc(formatFecha(r.checkInTime), xs.data(i % 2 === 0)),
@@ -538,9 +545,9 @@ export function Reportes({
 
   const exportarMaestro = () => {
     const maestro = maestros.find(m => String(m.id) === String(maestroId));
-    const COLS = [30, 18, 22, 18, 38];
-    const NUM_COLS = 5;
-    const headers = ['Alumno', 'Estado', 'Fecha de Registro', 'Dispositivo', 'Observaciones'];
+    const COLS = [18, 30, 18, 22, 18, 38];
+    const NUM_COLS = 6;
+    const headers = ['Matrícula', 'Alumno', 'Estado', 'Fecha de Registro', 'Dispositivo', 'Observaciones'];
     const rows: XsCell[][] = [headers.map(h => xc(h, xs.header))];
     const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
     let dataIdx = 0;
@@ -557,6 +564,7 @@ export function Reportes({
       for (const r of registros) {
         const even = dataIdx % 2 === 0;
         rows.push([
+          xc(r.matricula ?? r.studentId ?? '—', xs.data(even)),
           xc(r.alumno || '—',            xs.data(even)),
           xc(ESTADO[r.status]?.label || r.status, xs.status(r.status)),
           xc(formatFecha(r.checkInTime), xs.data(even)),
@@ -618,14 +626,14 @@ export function Reportes({
       const clases: {
         asignatura: string; maestro: string; laboratorio: string;
         dayOfWeek: number; startTime: string; endTime: string; grupo: string;
-        asistencias: { alumno: string; email: string; fechaClase: string | null;
+        asistencias: { alumno: string; matricula: string; email: string; fechaClase: string | null;
           status: string; deviceType: string; observaciones: string | null }[];
       }[] = await res.json();
 
       if (Array.isArray(clases) && clases.length > 0) {
-        const NUM_COLS = 6;
-        const headersDetalle = ['Alumno', 'Email', 'Fecha de Clase', 'Estado', 'Dispositivo', 'Observaciones'];
-        const COLS_D = [30, 28, 14, 16, 16, 32];
+        const NUM_COLS = 7;
+        const headersDetalle = ['Matrícula', 'Alumno', 'Email', 'Fecha de Clase', 'Estado', 'Dispositivo', 'Observaciones'];
+        const COLS_D = [18, 30, 28, 14, 16, 16, 32];
         const rows: XsCell[][] = [headersDetalle.map(h => xc(h, xs.header))];
         const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
         let dataIdx = 0;
@@ -653,6 +661,7 @@ export function Reportes({
                 ? new Date(a.fechaClase + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })
                 : a.fechaClase ?? '—';
               rows.push([
+                xc(a.matricula || '—',               xs.data(even)),
                 xc(a.alumno,                          xs.data(even)),
                 xc(a.email,                           xs.data(even)),
                 xc(fecha,                             xs.data(even)),
@@ -698,7 +707,7 @@ export function Reportes({
       <table className="w-full text-sm">
         <thead className="bg-gray-100 border-b">
           <tr>
-            {['Alumno', 'Estado', 'Fecha de Registro', 'Dispositivo', 'Observaciones'].map(h => (
+            {['Matrícula', 'Alumno', 'Estado', 'Fecha de Registro', 'Dispositivo', 'Observaciones'].map(h => (
               <th key={h} className="px-4 py-2 text-left text-xs font-black text-gray-700 uppercase whitespace-nowrap">{h}</th>
             ))}
           </tr>
@@ -706,6 +715,7 @@ export function Reportes({
         <tbody className="divide-y">
           {registros.map(r => (
             <tr key={r.id} className="hover:bg-gray-50">
+              <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{r.matricula ?? r.studentId ?? '—'}</td>
               <td className="px-4 py-2 font-medium text-gray-800">{r.alumno || '—'}</td>
               <td className="px-4 py-2">
                 <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${ESTADO[r.status]?.cls ?? 'bg-gray-100 text-gray-800'}`}>
@@ -785,7 +795,7 @@ export function Reportes({
                 <SearchInput
                   value={busquedaResultadosClase}
                   onChange={setBusquedaResultadosClase}
-                  placeholder="Buscar en resultados por alumno, estado, fecha, dispositivo u observaciones..."
+                  placeholder="Buscar en resultados por matrícula, alumno, estado, fecha, dispositivo u observaciones..."
                 />
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-gray-500 font-medium">
@@ -848,7 +858,7 @@ export function Reportes({
                   <SearchInput
                     value={busquedaResultadosMaestro}
                     onChange={setBusquedaResultadosMaestro}
-                    placeholder="Buscar en resultados por alumno, clase, laboratorio, estado, fecha, dispositivo u observaciones..."
+                    placeholder="Buscar en resultados por matrícula, alumno, clase, laboratorio, estado, fecha, dispositivo u observaciones..."
                   />
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-gray-500 font-medium">
@@ -972,7 +982,7 @@ export function Reportes({
                             <table className="w-full text-sm">
                               <thead className="bg-gray-100 border-b">
                                 <tr>
-                                  {['Alumno', 'Email', 'Fecha de Clase', 'Estado', 'Dispositivo', 'Observaciones'].map(h => (
+                                  {['Matrícula', 'Alumno', 'Email', 'Fecha de Clase', 'Estado', 'Dispositivo', 'Observaciones'].map(h => (
                                     <th key={h} className="px-4 py-2 text-left text-xs font-black text-gray-700 uppercase whitespace-nowrap">{h}</th>
                                   ))}
                                 </tr>
@@ -980,6 +990,7 @@ export function Reportes({
                               <tbody className="divide-y">
                                 {clase.asistencias.map(a => (
                                   <tr key={a.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{a.matricula || '—'}</td>
                                     <td className="px-4 py-2 font-medium text-gray-800 whitespace-nowrap">{a.alumno}</td>
                                     <td className="px-4 py-2 text-gray-500 text-xs">{a.email}</td>
                                     <td className="px-4 py-2 text-gray-600 whitespace-nowrap">
