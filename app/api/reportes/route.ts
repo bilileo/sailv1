@@ -21,7 +21,7 @@ export async function GET(request: Request) {
           checkInTime,
           status,
           observaciones,
-          Student (name, email),
+          Student (id, name, email),
           DeviceType (name),
           ClassDate!Attendance_claseId_fkey (fechaClase),
           ClassSession (
@@ -52,6 +52,7 @@ export async function GET(request: Request) {
         grupo: string;
         asistencias: {
           alumno: string;
+          matricula: string;
           email: string;
           fechaClase: string | null;
           status: string;
@@ -89,6 +90,7 @@ export async function GET(request: Request) {
 
         grouped[sid].asistencias.push({
           alumno:       student?.['name'] as string ?? '—',
+          matricula:    String(student?.['id'] ?? '—'),
           email:        student?.['email'] as string ?? '—',
           fechaClase:   classDate?.['fechaClase'] as string | null,
           status:       row['status'] as string,

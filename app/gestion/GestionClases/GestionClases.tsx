@@ -9,6 +9,12 @@ interface Maestro {
   name: string;
 }
 
+interface Alumno {
+  id: string;
+  name: string;
+  email?: string;
+}
+
 const NOMBRES_SEMESTRES: Record<number, string> = {
   1: 'Primer Semestre',
   2: 'Segundo Semestre',
@@ -32,6 +38,8 @@ export function CatalogoClases() {
   const [menuActivo, setMenuActivo] = useState<string | null>(null);
   const [catalogo, setCatalogo] = useState<CatalogoClase[]>([]);
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaProfesores, setBusquedaProfesores] = useState('');
+  const [busquedaAlumnos, setBusquedaAlumnos] = useState('');
 
   // Estados para el modal de profesores
   const [modalProfesoresAbierto, setModalProfesoresAbierto] = useState(false);
@@ -43,7 +51,7 @@ export function CatalogoClases() {
 
   // Estados para el modal de alumnos
   const [modalAlumnosAbierto, setModalAlumnosAbierto] = useState(false);
-  const [alumnos, setAlumnos] = useState<{ id: string; name: string }[]>([]);
+  const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [alumnosSeleccionados, setAlumnosSeleccionados] = useState<string[]>([]);
   const [cargandoAlumnos, setCargandoAlumnos] = useState(false);
   const [guardandoAlumnos, setGuardandoAlumnos] = useState(false);
@@ -77,6 +85,26 @@ export function CatalogoClases() {
   };
 
   useEffect(() => { cargarCatalogo(); }, []);
+
+  const normalizarTexto = (valor: unknown) => String(valor ?? '').toLowerCase().trim();
+
+  const maestrosFiltrados = maestros.filter((maestro) => {
+    const termino = normalizarTexto(busquedaProfesores);
+    if (!termino) return true;
+
+    return [maestro.name, maestro.id].some((valor) =>
+      normalizarTexto(valor).includes(termino)
+    );
+  });
+
+  const alumnosFiltrados = alumnos.filter((alumno) => {
+    const termino = normalizarTexto(busquedaAlumnos);
+    if (!termino) return true;
+
+    return [alumno.id, alumno.name, alumno.email].some((valor) =>
+      normalizarTexto(valor).includes(termino)
+    );
+  });
 
   const abrirModal = (catalogo?: CatalogoClase) => {
     setErrores({});
@@ -191,6 +219,7 @@ export function CatalogoClases() {
 
   const abrirModalProfesores = async (catalogo: CatalogoClase) => {
     setCatalogoSeleccionado(catalogo);
+    setBusquedaProfesores('');
     setModalProfesoresAbierto(true);
     setCargandoProfesores(true);
 
@@ -221,6 +250,7 @@ export function CatalogoClases() {
   const cerrarModalProfesores = () => {
     setModalProfesoresAbierto(false);
     setCatalogoSeleccionado(null);
+    setBusquedaProfesores('');
     setMaestros([]);
     setProfesoresSeleccionados([]);
   };
@@ -266,6 +296,7 @@ export function CatalogoClases() {
 
   const abrirModalAlumnos = async (catalogo: CatalogoClase) => {
     setCatalogoSeleccionado(catalogo);
+    setBusquedaAlumnos('');
     setModalAlumnosAbierto(true);
     setCargandoAlumnos(true);
 
@@ -296,6 +327,7 @@ export function CatalogoClases() {
   const cerrarModalAlumnos = () => {
     setModalAlumnosAbierto(false);
     setCatalogoSeleccionado(null);
+    setBusquedaAlumnos('');
     setAlumnos([]);
     setAlumnosSeleccionados([]);
   };
@@ -689,6 +721,22 @@ export function CatalogoClases() {
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Buscar profesor
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={busquedaProfesores}
+                    onChange={(e) => setBusquedaProfesores(e.target.value)}
+                    placeholder="Buscar por nombre o número de empleado..."
+                    className="w-full border-2 border-gray-200 rounded-sm pl-10 pr-3 py-2 text-sm text-black outline-none focus:border-[#0b6e3f] transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
                   Profesores disponibles
                 </label>
 
@@ -701,9 +749,13 @@ export function CatalogoClases() {
                   <div className="text-sm text-gray-500 bg-gray-50 border rounded p-4 text-center">
                     No hay profesores registrados.
                   </div>
+                ) : maestrosFiltrados.length === 0 ? (
+                  <div className="text-sm text-gray-500 bg-gray-50 border rounded p-4 text-center">
+                    No se encontraron profesores con esa búsqueda.
+                  </div>
                 ) : (
                   <div className="border rounded max-h-64 overflow-y-auto divide-y">
-                    {maestros.map((maestro) => (
+                    {maestrosFiltrados.map((maestro) => (
                       <label
                         key={maestro.id}
                         className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
@@ -714,7 +766,10 @@ export function CatalogoClases() {
                           onChange={() => toggleProfesor(maestro.id)}
                           className="w-4 h-4 accent-[#0b6e3f]"
                         />
-                        <span>{maestro.name}</span>
+                        <span className="flex flex-col leading-tight">
+                          <span className="font-medium text-gray-800">{maestro.name}</span>
+                          <span className="text-xs text-gray-500">No. empleado: {maestro.id}</span>
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -779,6 +834,22 @@ export function CatalogoClases() {
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Buscar alumno
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={busquedaAlumnos}
+                    onChange={(e) => setBusquedaAlumnos(e.target.value)}
+                    placeholder="Buscar por matrícula o nombre..."
+                    className="w-full border-2 border-gray-200 rounded-sm pl-10 pr-3 py-2 text-sm text-black outline-none focus:border-[#1a73e8] transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
                   Alumnos disponibles
                 </label>
 
@@ -791,9 +862,13 @@ export function CatalogoClases() {
                   <div className="text-sm text-gray-500 bg-gray-50 border rounded p-4 text-center">
                     No hay alumnos registrados.
                   </div>
+                ) : alumnosFiltrados.length === 0 ? (
+                  <div className="text-sm text-gray-500 bg-gray-50 border rounded p-4 text-center">
+                    No se encontraron alumnos con esa búsqueda.
+                  </div>
                 ) : (
                   <div className="border rounded max-h-64 overflow-y-auto divide-y">
-                    {alumnos.map((alumno) => (
+                    {alumnosFiltrados.map((alumno) => (
                       <label
                         key={alumno.id}
                         className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
@@ -804,7 +879,10 @@ export function CatalogoClases() {
                           onChange={() => toggleAlumno(alumno.id)}
                           className="w-4 h-4 accent-[#1a73e8]"
                         />
-                        <span>{alumno.name}</span>
+                        <span className="flex flex-col leading-tight">
+                          <span className="font-medium text-gray-800">{alumno.name}</span>
+                          <span className="text-xs text-gray-500">Matrícula: {alumno.id}</span>
+                        </span>
                       </label>
                     ))}
                   </div>

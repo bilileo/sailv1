@@ -27,7 +27,7 @@ export async function GET(request: Request) {
           checkInTime,
           checkOutTime,
           observaciones,
-          Student (name, email),
+          Student (id, name, email),
           DeviceType (name),
           ClassDate!Attendance_claseId_fkey (fechaClase)
         )
@@ -56,6 +56,7 @@ export async function GET(request: Request) {
           checkOutTime: a['checkOutTime'] as string | null,
           observaciones: a['observaciones'] as string | null,
           alumno: student?.['name'] as string ?? '—',
+          matricula: String(student?.['id'] ?? '—'),
           email: student?.['email'] as string ?? '—',
           deviceType: device?.['name'] as string ?? '—',
           fechaClase: classDate?.['fechaClase'] as string | null,
