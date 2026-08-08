@@ -27,6 +27,7 @@ interface Clase {
   tipoSession?: string;
   horario: string;
   status?: string;
+  descripcion?: string;
   dayOfWeek: number;
   color?: string;
   grupo?: string;

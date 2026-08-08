@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export async function GET(request: Request) {
@@ -8,7 +10,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const asignaturaId = searchParams.get('asignaturaId');
 
-    if (asignaturaId) {
+    if (asignaturaId && asignaturaId !== 'null' && asignaturaId !== 'undefined') {
       const asignaturaIdNumber = Number(asignaturaId);
 
       if (Number.isNaN(asignaturaIdNumber)) {
@@ -39,6 +41,7 @@ export async function GET(request: Request) {
 
       return NextResponse.json(data);
     }
+    
     const { data, error } = await supabase
       .from('User')
       .select('id, name')
@@ -46,7 +49,9 @@ export async function GET(request: Request) {
       .order('name');
 
     if (error) throw error;
+    
     return NextResponse.json(data);
+    
   } catch (error) {
     console.error("Error Supabase Maestros:", error);
     return NextResponse.json({ error: 'Error al obtener maestros' }, { status: 500 });

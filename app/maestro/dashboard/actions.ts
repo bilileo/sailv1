@@ -1,7 +1,7 @@
 // app/actions.ts
-'use server' // <-- Esta directiva es crucial, le dice a Next.js que esto corre en Node
+'use server'
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { supabase } from '@/app/lib/supabase';
 import type { StudentRow, StudentStatus } from '@/app/lib/attendance-types';
 
@@ -102,6 +102,7 @@ const normalizeSeatDeviceTypeId = (seatDeviceTypeId?: number | string | null) =>
 
 // Obtiene la lista de alumnos
 export async function getStudents(classId: string, providedDate?: string | null): Promise<StudentRow[]> {
+  noStore();
   const hoy = providedDate || new Date().toISOString().split('T')[0];
   const { data: classDate } = await supabase
     .from('ClassDate')
@@ -286,7 +287,8 @@ export async function registerStudent(
     .select(`
       teacherId, 
       asignaturaId,
-      Asignatura ( name )
+      descripcion,
+      Asignatura ( name, "materiaCode" )
     `)
     .eq('id', classId)
     .maybeSingle();
@@ -296,9 +298,11 @@ export async function registerStudent(
     return { success: false, error: 'No se pudo determinar el maestro de la clase.' };
   }
 
-  const asignaturaData = classSession.Asignatura as { name?: string } | null;
-  const asignaturaName = asignaturaData?.name || '';
-  const esEventoEspecial = asignaturaName.toUpperCase().startsWith('EVENTO:');
+  const asignaturaData = classSession.Asignatura as { name?: string, materiaCode?: string } | null;
+  const esEventoEspecial = 
+    asignaturaData?.materiaCode === '000000' || 
+    asignaturaData?.name === 'EVENTO' || 
+    classSession.descripcion !== null;
 
   if (!esEventoEspecial && classSession.asignaturaId) {
     const { data: inscripcion, error: inscError } = await supabase
