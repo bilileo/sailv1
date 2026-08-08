@@ -3,22 +3,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, LogOut, Users, X, Clock, QrCode } from 'lucide-react';
-import { getStudents, updateStudentStatus, deleteStudent, registerStudent, finalizarClaseParaHoy } from './actions';
+import { getStudents, updateStudentStatus, deleteStudent, registerStudent, finalizarClaseParaHoy, getDashboardClassDetails } from './actions';
 import { StudentRow, StudentStatus } from '@/app/lib/attendance-types';
 import { getSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { Navbar } from '@/app/components/Navbar';
 import QRCode from 'react-qr-code';
-
 import { getCodeForLaboratory } from '@/app/lib/otpLab';
 
-const CODE_REFRESH_INTERVAL = 30; // Segundos
-
-const getDiaJs = (dayOfWeek?: number) => {
-  if (!dayOfWeek) return null;
-  return dayOfWeek === 7 ? 0 : dayOfWeek;
-};
+const CODE_REFRESH_INTERVAL = 30;
 
 const parseHorario = (horario?: string) => {
   if (!horario) return null;
@@ -30,11 +24,10 @@ const parseHorario = (horario?: string) => {
   return { startHour, endHour };
 };
 
-const getMinutesNow = (fecha: Date) => fecha.getHours() * 60 + fecha.getMinutes();
-
 interface ClaseDash {
   id: string;
   maestroId?: string;
+  maestroNombre?: string;
   status: string;
   nombre: string;
   laboratorio: string;
@@ -48,9 +41,9 @@ function TeacherDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const classId = searchParams.get('classId');
-  const classDate = searchParams.get('classDate'); // e.g. '2026-08-06'
+  const classDate = searchParams.get('classDate'); 
 
-  // === ESTADOS DEL COMPONENTE ===
+  // === ESTADOS ===
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [currentCode, setCurrentCode] = useState<string>('------');
   const [timeLeft, setTimeLeft] = useState(CODE_REFRESH_INTERVAL);
@@ -79,25 +72,15 @@ function TeacherDashboardContent() {
   const getManualDeviceTypeId = () => {
     if (manualDeviceUseOption === 'propio') return 1;
     if (manualDeviceUseOption === 'prestado') return 0;
-
     const parsed = Number(manualLabDeviceTypeId);
-
-    if (Number.isNaN(parsed)) {
-      return null;
-    }
-
+    if (Number.isNaN(parsed)) return null;
     return parsed;
   };
 
   const getManualSeatDeviceTypeId = () => {
     if (manualSeatDeviceTypeId === 'none') return null;
-
     const parsed = Number(manualSeatDeviceTypeId);
-
-    if (Number.isNaN(parsed)) {
-      return null;
-    }
-
+    if (Number.isNaN(parsed)) return null;
     return parsed;
   };
 
@@ -128,10 +111,9 @@ function TeacherDashboardContent() {
       setCargandoClase(true);
       setClaseNoEncontrada(false);
 
-      const timestamp = new Date().getTime();
-      const resClases = await fetch(`/api/clases?t=${timestamp}`, { cache: 'no-store' });
+      const claseData = await getDashboardClassDetails(String(classId), classDate);
 
-      if (!resClases.ok) {
+      if (!claseData) {
         setClaseInfo(null);
         setMaestroNombre('');
         setClaseNoEncontrada(true);
@@ -139,97 +121,70 @@ function TeacherDashboardContent() {
         return;
       }
 
-      const data = await resClases.json();
-      const encontrada = data.find((c: Record<string, unknown>) => String(c['id']) === String(classId)) || null;
-
-      if (!encontrada) {
-        setClaseInfo(null);
-        setMaestroNombre('');
-        setClaseNoEncontrada(true);
-        setCargandoClase(false);
-        return;
-      }
-
-      setClaseInfo(encontrada);
-
-      if (encontrada.maestroId) {
-        const resMaestros = await fetch(`/api/maestros?t=${timestamp}`, { cache: 'no-store' });
-        if (resMaestros.ok) {
-          const maestros = await resMaestros.json();
-          const maestro = maestros.find((m: { id: string; name: string }) => m.id === encontrada.maestroId);
-          setMaestroNombre(maestro?.name || usuarioActivo?.name || '');
-        } else {
-          setMaestroNombre(usuarioActivo?.name || '');
-        }
-      } else {
-        setMaestroNombre(usuarioActivo?.name || '');
-      }
-
+      setClaseInfo(claseData);
+      setMaestroNombre(claseData.maestroNombre || usuarioActivo?.name || '');
       setCargandoClase(false);
     };
 
     cargarClase();
   }, [classId, usuarioActivo?.name]);
 
-useEffect(() => {
+  useEffect(() => {
     if (!claseInfo) return;
 
     const evaluarFase = async () => {
-
       if (claseInfo.status === 'ENDED' || claseInfo.status === 'FINALIZADA' || claseInfo.status === 'IMPARTIDA') {
         setFaseClase('ended');
         setClassStatus('finished');
         return;
       }
 
-      const horario = parseHorario(claseInfo.horario);
-      const diaClase = getDiaJs(claseInfo.dayOfWeek);
-      const hoy = new Date();
-
-      if (diaClase === null || !horario) {
-        setFaseClase('scheduled');
-        setClassStatus('scheduled');
-        return;
-      }
-
-      const hoyDia = hoy.getDay();
+      const tzString = new Date().toLocaleString('en-US', { timeZone: 'America/Tijuana', hour12: false });
+      const [datePart, timePart] = tzString.split(', ');
+      const [m, d, y] = datePart.split('/');
+      const [hr, min] = timePart.split(':');
       
-      if (diaClase < hoyDia) {
+      const hoyLocal = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      const targetDate = classDate || hoyLocal;
+
+      if (targetDate < hoyLocal) {
         setFaseClase('ended');
         setClassStatus('finished');
         return;
       }
-
-      if (diaClase > hoyDia) {
+      if (targetDate > hoyLocal) {
         setFaseClase('scheduled');
         setClassStatus('scheduled');
         return;
       }
 
-      const ahora = getMinutesNow(hoy);
+      const horario = parseHorario(claseInfo.horario);
+      if (!horario) {
+        setFaseClase('scheduled');
+        setClassStatus('scheduled');
+        return;
+      }
+
+      const ahoraMin = parseInt(hr, 10) * 60 + parseInt(min, 10);
       const inicio = horario.startHour * 60;
       const fin = horario.endHour * 60;
 
-      if (ahora < inicio) {
+      if (ahoraMin < inicio) {
         setFaseClase('scheduled');
         setClassStatus('scheduled');
-        return;
-      }
-
-      if (ahora >= fin) {
+      } else if (ahoraMin >= fin) {
         setFaseClase('ended');
         setClassStatus('finished');
-        return;
+      } else {
+        setFaseClase('inProgress');
+        setClassStatus('inProgress');
       }
-
-      setFaseClase('inProgress');
-      setClassStatus('inProgress');
     };
 
     evaluarFase();
-    const interval = setInterval(evaluarFase, 30000);
+    const interval = setInterval(evaluarFase, 15000);
     return () => clearInterval(interval);
-  }, [claseInfo]);
+  }, [claseInfo, classDate]);
 
   useEffect(() => {
     const fetchLatestStudents = async () => {
@@ -251,15 +206,10 @@ useEffect(() => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [classStatus, classId]);
+  }, [classStatus, classId, classDate]);
 
-  // === MOTOR DEL CÓDIGO DINÁMICO ===
-  // Este Effect maneja la rotación del código
   useEffect(() => {
-    if (classStatus !== 'inProgress') {
-      return;
-    }
-
+    if (classStatus !== 'inProgress') return;
     if (!classId || !claseInfo?.laboratorioId) return;
 
     let isMounted = true;
@@ -290,30 +240,30 @@ useEffect(() => {
       }
     }, 1000);
 
-    // Limpieza del intervalo cuando el componente se desmonta
     return () => {
       isMounted = false;
       clearInterval(timer);
     };
   }, [classStatus, classId, claseInfo?.laboratorioId]);
 
-  // === MANEJADORES DE EVENTOS (HANDLERS) ===
-
-  const finalizeClass = async () => {
+const finalizeClass = async () => {
     if (!classId) return;
-    
-    await finalizarClaseParaHoy(String(classId));
-    
-    setFaseClase('ended');
-    setClassStatus('finished');
-    setTimeLeft(0);
-    setCurrentCode('------');
+
+    try {
+      await finalizarClaseParaHoy(String(classId), classDate);
+      setFaseClase('ended');
+      setClassStatus('finished');
+      setTimeLeft(0);
+      setCurrentCode('------');
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const handleStatusChange = async (studentId: string, newStatus: StudentStatus, observaciones?: string) => {
     if (!classId) return;
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status: newStatus, observaciones } : s));
-    await updateStudentStatus(studentId, String(classId), newStatus, observaciones);
+    await updateStudentStatus(studentId, String(classId), newStatus, observaciones, classDate);
     setOpenReportFor(null);
   };
 
@@ -326,9 +276,7 @@ useEffect(() => {
 
   const handleDelete = async (studentId: string) => {
     if (!classId) return;
-    // 1. Actualización Optimista
     setStudents(prev => prev.filter(s => s.id !== studentId));
-    // 2. Persistencia en el archivo JSON
     await deleteStudent(studentId, String(classId), classDate);
   };
 
@@ -377,7 +325,8 @@ useEffect(() => {
       code: currentCode,
       registeredAt: new Date().toISOString(),
       classId: String(classId),
-      observaciones: manualObservaciones.trim() || undefined
+      observaciones: manualObservaciones.trim() || undefined,
+      classDate: classDate
     });
     setManualSaving(false);
 
@@ -390,8 +339,6 @@ useEffect(() => {
     setStudents(data);
     setManualOpen(false);
   };
-
-  // === RENDERIZADO CONDICIONAL ===
 
   const getStudentRowStyle = (status: StudentStatus = 'normal') => {
     const styles = {
@@ -448,7 +395,7 @@ useEffect(() => {
                     {claseInfo?.status ? `Estado: ${claseInfo.status}` : 'Estado: ---'}
                   </span>
                   <span className="font-semibold text-[#1a73e8] capitalize">
-                    {new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    {new Date(classDate ? classDate + 'T12:00:00Z' : Date.now()).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </span>
                 </div>
               )}
@@ -527,7 +474,6 @@ useEffect(() => {
                       )}
                     </div>
 
-                    {/* Controles de Acción por Alumno */}
                     <div className="flex items-center space-x-3 text-black">
                       <button onClick={() => handleDelete(student.id)} className="hover:text-red-500">
                         <X size={18} strokeWidth={2.5} />
@@ -536,7 +482,6 @@ useEffect(() => {
                         <Clock size={18} />
                       </button>
 
-                      {/* Menú Desplegable de Reportes */}
                       <div className="relative">
                         <button
                           onClick={() => setOpenReportFor(openReportFor === student.id ? null : student.id)}
@@ -587,143 +532,54 @@ useEffect(() => {
             <div className="w-full max-w-md bg-white rounded shadow-lg border border-gray-200">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
                 <h3 className="text-sm font-bold text-gray-900">Registro manual de asistencia</h3>
-                <button
-                  onClick={() => setManualOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                  aria-label="Cerrar"
-                >
-                  <X size={18} />
-                </button>
+                <button onClick={() => setManualOpen(false)} className="text-gray-500 hover:text-gray-700"><X size={18} /></button>
               </div>
               <form onSubmit={handleManualSubmit} className="px-4 py-4 space-y-3">
                 <div>
-                  <label htmlFor="manualId" className="block text-xs font-semibold text-gray-700 mb-1">
-                    Codigo / Matricula
-                  </label>
-                  <input
-                    id="manualId"
-                    type="text"
-                    value={manualId}
-                    onChange={(e) => setManualId(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
-                  />
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Codigo / Matricula</label>
+                  <input type="text" value={manualId} onChange={(e) => setManualId(e.target.value)} className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a73e8]" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-2">
-                    Dispositivo en uso
-                  </label>
-
+                  <label className="block text-xs font-semibold text-gray-700 mb-2">Dispositivo en uso</label>
                   <div className="grid grid-cols-1 gap-2">
-                    <label className="flex items-center gap-3 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
-                      <input
-                        type="radio"
-                        name="manualDeviceUseOption"
-                        value="propio"
-                        checked={manualDeviceUseOption === 'propio'}
-                        onChange={() => {
-                          setManualDeviceUseOption('propio');
-                          setManualLabDeviceTypeId('');
-                        }}
-                        className="accent-[#1a73e8]"
-                      />
+                    <label className="flex items-center gap-3 rounded border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                      <input type="radio" value="propio" checked={manualDeviceUseOption === 'propio'} onChange={() => { setManualDeviceUseOption('propio'); setManualLabDeviceTypeId(''); }} className="accent-[#1a73e8]" />
                       <span>Propio</span>
                     </label>
-
-                    <label className="flex items-center gap-3 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
-                      <input
-                        type="radio"
-                        name="manualDeviceUseOption"
-                        value="prestado"
-                        checked={manualDeviceUseOption === 'prestado'}
-                        onChange={() => {
-                          setManualDeviceUseOption('prestado');
-                          setManualLabDeviceTypeId('');
-                        }}
-                        className="accent-[#1a73e8]"
-                      />
+                    <label className="flex items-center gap-3 rounded border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                      <input type="radio" value="prestado" checked={manualDeviceUseOption === 'prestado'} onChange={() => { setManualDeviceUseOption('prestado'); setManualLabDeviceTypeId(''); }} className="accent-[#1a73e8]" />
                       <span>Prestado</span>
                     </label>
-
-                    <label className="flex items-center gap-3 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
-                      <input
-                        type="radio"
-                        name="manualDeviceUseOption"
-                        value="laboratorio"
-                        checked={manualDeviceUseOption === 'laboratorio'}
-                        onChange={() => setManualDeviceUseOption('laboratorio')}
-                        className="accent-[#1a73e8]"
-                      />
+                    <label className="flex items-center gap-3 rounded border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                      <input type="radio" value="laboratorio" checked={manualDeviceUseOption === 'laboratorio'} onChange={() => setManualDeviceUseOption('laboratorio')} className="accent-[#1a73e8]" />
                       <span>De Laboratorio</span>
                     </label>
                   </div>
-
                   {manualDeviceUseOption === 'laboratorio' && (
                     <div className="mt-3">
-                      <label htmlFor="manualLabDeviceType" className="block text-xs font-semibold text-gray-700 mb-1">
-                        Selecciona el dispositivo de laboratorio
-                      </label>
-                      <select
-                        id="manualLabDeviceType"
-                        value={manualLabDeviceTypeId}
-                        onChange={(e) => setManualLabDeviceTypeId(e.target.value)}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
-                      >
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Selecciona el dispositivo de laboratorio</label>
+                      <select value={manualLabDeviceTypeId} onChange={(e) => setManualLabDeviceTypeId(e.target.value)} className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a73e8]">
                         <option value="">Selecciona una opcion</option>
-                        {labDeviceTypes.map(dt => (
-                          <option key={dt.id} value={dt.id.toString()}>{dt.name}</option>
-                        ))}
+                        {labDeviceTypes.map(dt => <option key={dt.id} value={dt.id.toString()}>{dt.name}</option>)}
                       </select>
                     </div>
                   )}
                 </div>
-
                 <div>
-                  <label htmlFor="manualSeatDeviceType" className="block text-xs font-semibold text-gray-700 mb-1">
-                    ¿Dónde estuvo sentado?
-                  </label>
-                  <select
-                    id="manualSeatDeviceType"
-                    value={manualSeatDeviceTypeId}
-                    onChange={(e) => setManualSeatDeviceTypeId(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
-                  >
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">¿Dónde estuvo sentado?</label>
+                  <select value={manualSeatDeviceTypeId} onChange={(e) => setManualSeatDeviceTypeId(e.target.value)} className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a73e8]">
                     <option value="none">Ninguno</option>
-                    {labDeviceTypes.map(dt => (
-                      <option key={dt.id} value={dt.id.toString()}>{dt.name}</option>
-                    ))}
+                    {labDeviceTypes.map(dt => <option key={dt.id} value={dt.id.toString()}>{dt.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="manualObservaciones" className="block text-xs font-semibold text-gray-700 mb-1">
-                    Observaciones <span className="text-gray-400 font-normal">(Opcional)</span>
-                  </label>
-                  <textarea
-                    id="manualObservaciones"
-                    value={manualObservaciones}
-                    onChange={(e) => setManualObservaciones(e.target.value)}
-                    rows={2}
-                    placeholder="Ej. El alumno llegó sin dispositivo propio..."
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8] resize-none"
-                  />
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Observaciones <span className="text-gray-400 font-normal">(Opcional)</span></label>
+                  <textarea value={manualObservaciones} onChange={(e) => setManualObservaciones(e.target.value)} rows={2} placeholder="Ej. El alumno llegó sin dispositivo propio..." className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a73e8] resize-none" />
                 </div>
-
-                {manualError && (
-                  <p className="text-xs text-red-600">{manualError}</p>
-                )}
-
+                {manualError && <p className="text-xs text-red-600">{manualError}</p>}
                 <div className="flex items-center justify-end space-x-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setManualOpen(false)}
-                    className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={manualSaving}
-                    className="bg-[#1a73e8] hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-medium px-4 py-2 rounded"
-                  >
+                  <button type="button" onClick={() => setManualOpen(false)} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800">Cancelar</button>
+                  <button type="submit" disabled={manualSaving} className="bg-[#1a73e8] hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded">
                     {manualSaving ? 'Guardando...' : 'Registrar'}
                   </button>
                 </div>
@@ -731,38 +587,22 @@ useEffect(() => {
             </div>
           </div>
         )}
+
         {reportModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="w-full max-w-md bg-white rounded shadow-lg border border-gray-200">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-                <h3 className="text-sm font-bold text-gray-900">
-                  Marcar como {reportModal.status === 'ausente' ? 'Ausente' : 'Abandono temprano'}
-                </h3>
-                <button onClick={() => setReportModal(null)} className="text-gray-500 hover:text-gray-700">
-                  <X size={18} />
-                </button>
+                <h3 className="text-sm font-bold text-gray-900">Marcar como {reportModal.status === 'ausente' ? 'Ausente' : 'Abandono temprano'}</h3>
+                <button onClick={() => setReportModal(null)} className="text-gray-500 hover:text-gray-700"><X size={18} /></button>
               </div>
               <div className="px-4 py-4 space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Observaciones <span className="text-gray-400 font-normal">(Opcional)</span>
-                  </label>
-                  <textarea
-                    value={reportObservaciones}
-                    onChange={(e) => setReportObservaciones(e.target.value)}
-                    rows={3}
-                    placeholder="Ej. El alumno no se presentó sin justificación..."
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a73e8] resize-none"
-                    autoFocus
-                  />
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Observaciones <span className="text-gray-400 font-normal">(Opcional)</span></label>
+                  <textarea value={reportObservaciones} onChange={(e) => setReportObservaciones(e.target.value)} rows={3} className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a73e8] resize-none" autoFocus />
                 </div>
                 <div className="flex items-center justify-end space-x-2 pt-1">
-                  <button type="button" onClick={() => setReportModal(null)} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800">
-                    Cancelar
-                  </button>
-                  <button type="button" onClick={handleConfirmReport} className="bg-[#1a73e8] hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded">
-                    Confirmar
-                  </button>
+                  <button type="button" onClick={() => setReportModal(null)} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800">Cancelar</button>
+                  <button type="button" onClick={handleConfirmReport} className="bg-[#1a73e8] hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded">Confirmar</button>
                 </div>
               </div>
             </div>

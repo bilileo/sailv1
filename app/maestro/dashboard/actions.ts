@@ -22,10 +22,28 @@ const attendanceToStatus: Record<AttendanceStatus, StudentStatus> = {
   UNAUTHORIZED: 'ausente'
 };
 
-const getDayOfWeekDb = (date: Date) => {
-  const day = date.getDay();
-  return day === 0 ? 7 : day;
-};
+function getTijuanaTimeInfo(dateObj: Date = new Date()) {
+  const tzString = dateObj.toLocaleString('en-US', { timeZone: 'America/Tijuana', hour12: false });
+  const [datePart, timePart] = tzString.split(', ');
+  const [m, d, y] = datePart.split('/');
+  const [hr, min] = timePart.split(':');
+
+  const ymd = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  
+  const dateForDay = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+  const day = dateForDay.getDay();
+  const dayOfWeekDb = day === 0 ? 7 : day;
+
+  let parsedHr = parseInt(hr, 10);
+  if (parsedHr === 24) parsedHr = 0;
+
+  return {
+    ymd,
+    hour: parsedHr,
+    minute: parseInt(min, 10),
+    dayOfWeekDb
+  };
+}
 
 const timeToMinutes = (time?: string | null) => {
   if (!time) return null;
@@ -35,12 +53,14 @@ const timeToMinutes = (time?: string | null) => {
 };
 
 const isClassInProgress = (dayOfWeek: number, startTime: string, endTime: string) => {
-  const now = new Date();
-  if (dayOfWeek !== getDayOfWeekDb(now)) return false;
+  const tj = getTijuanaTimeInfo();
+  if (dayOfWeek !== tj.dayOfWeekDb) return false;
+  
   const startMinutes = timeToMinutes(startTime);
   const endMinutes = timeToMinutes(endTime);
   if (startMinutes === null || endMinutes === null) return false;
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  
+  const nowMinutes = tj.hour * 60 + tj.minute;
   return nowMinutes >= startMinutes && nowMinutes < endMinutes;
 };
 
@@ -48,24 +68,11 @@ const resolveDeviceTypeId = async (name: string) => {
   const normalized = name.trim();
   if (!normalized) return null;
 
-  const { data: existing, error } = await supabase
-    .from('DeviceType')
-    .select('id')
-    .eq('name', normalized)
-    .maybeSingle();
-
+  const { data: existing, error } = await supabase.from('DeviceType').select('id').eq('name', normalized).maybeSingle();
   if (error) throw error;
+  if (existing?.id !== undefined && existing?.id !== null) return existing.id;
 
-  if (existing?.id !== undefined && existing?.id !== null) {
-    return existing.id;
-  }
-
-  const { data: created, error: insertError } = await supabase
-    .from('DeviceType')
-    .insert([{ name: normalized }])
-    .select('id')
-    .maybeSingle();
-
+  const { data: created, error: insertError } = await supabase.from('DeviceType').insert([{ name: normalized }]).select('id').maybeSingle();
   if (insertError) throw insertError;
   return created?.id ?? null;
 };
@@ -73,37 +80,24 @@ const resolveDeviceTypeId = async (name: string) => {
 const resolveDeviceTypeIdFromValue = async (deviceTypeId?: number | string | null, deviceTypeName?: string) => {
   if (deviceTypeId !== undefined && deviceTypeId !== null && deviceTypeId !== '') {
     const parsed = Number(deviceTypeId);
-
-    if (Number.isNaN(parsed)) {
-      return null;
-    }
-
+    if (Number.isNaN(parsed)) return null;
     return parsed;
   }
-
   return resolveDeviceTypeId(deviceTypeName || 'Propio');
 };
 
 const normalizeSeatDeviceTypeId = (seatDeviceTypeId?: number | string | null) => {
-  if (seatDeviceTypeId === undefined || seatDeviceTypeId === null || seatDeviceTypeId === '') {
-    return null;
-  }
-
+  if (seatDeviceTypeId === undefined || seatDeviceTypeId === null || seatDeviceTypeId === '') return null;
   const parsed = Number(seatDeviceTypeId);
-
-  if (Number.isNaN(parsed)) {
-    return null;
-  }
-
+  if (Number.isNaN(parsed)) return null;
   return parsed;
 };
 
-
-
-// Obtiene la lista de alumnos
 export async function getStudents(classId: string, providedDate?: string | null): Promise<StudentRow[]> {
   noStore();
-  const hoy = providedDate || new Date().toISOString().split('T')[0];
+  
+  const hoy = providedDate || getTijuanaTimeInfo().ymd;
+
   const { data: classDate } = await supabase
     .from('ClassDate')
     .select('id')
@@ -111,128 +105,104 @@ export async function getStudents(classId: string, providedDate?: string | null)
     .eq('fechaClase', hoy)
     .maybeSingle();
 
-  let query = supabase
+  const { data, error } = await supabase
     .from('Attendance')
-    .select('id, studentId, status, observaciones, deviceTypeId, seatDeviceTypeId, Student ( id, name )')
-    .eq('classSessionId', classId);
-
-  if (classDate?.id) {
-    query = query.eq('claseId', classDate.id);
-  } else {
-    // Fallback: only show attendances where checkInTime is that day
-    const startOfDay = new Date(hoy + 'T00:00:00');
-    const endOfDay = new Date(hoy + 'T23:59:59.999');
-    query = query.gte('checkInTime', startOfDay.toISOString()).lte('checkInTime', endOfDay.toISOString());
-  }
-
-  const { data, error } = await query.order('checkInTime', { ascending: true });
+    .select('id, studentId, status, observaciones, deviceTypeId, seatDeviceTypeId, checkInTime, claseId, Student ( id, name )')
+    .eq('classSessionId', classId)
+    .order('checkInTime', { ascending: false });
 
   if (error) throw error;
 
-  const { data: deviceTypes, error: deviceTypesError } = await supabase
-    .from('DeviceType')
-    .select('id, name');
+  const ahoraMs = Date.now();
 
-  if (deviceTypesError) throw deviceTypesError;
+  const alumnosFiltrados = (data || []).filter((row: any) => {
+    if (!row.checkInTime) return true;
+    
+    if (classDate?.id && row.claseId && String(row.claseId) === String(classDate.id)) return true;
 
-  const deviceTypeMap = new Map(
-    (deviceTypes || []).map((deviceType) => {
-      const item = deviceType as { id: number; name: string };
-      return [item.id, item.name];
-    })
-  );
+    const checkInMs = new Date(row.checkInTime).getTime();
+    const tzCheckIn = getTijuanaTimeInfo(new Date(checkInMs));
+    if (tzCheckIn.ymd === hoy) return true;
 
-  return (data || []).map((row) => {
-    const r = row as {
-      studentId: string;
-      Student: { id: string; name: string } | { id: string; name: string }[] | null;
-      status: string;
-      observaciones?: string;
-      deviceTypeId?: number | null;
-      seatDeviceTypeId?: number | null;
-    };
+    const horasPasadas = (ahoraMs - checkInMs) / (1000 * 60 * 60);
+    if (horasPasadas >= 0 && horasPasadas <= 18) return true;
 
-    let studentData: { id: string; name: string } | null = null;
-    if (r.Student) {
-      studentData = Array.isArray(r.Student) ? r.Student[0] : r.Student;
+    return false;
+  });
+
+  const { data: deviceTypes } = await supabase.from('DeviceType').select('id, name');
+  const deviceTypeMap = new Map((deviceTypes || []).map((dt: any) => [dt.id, dt.name]));
+
+  const { data: studentsData } = await supabase.from('Student').select('id, name');
+  const studentMap = new Map((studentsData || []).map((s: any) => [s.id, s.name]));
+
+  return alumnosFiltrados.map((row: any) => {
+    let fallbackName = studentMap.get(row.studentId) || row.studentId;
+    if (row.Student) {
+      fallbackName = Array.isArray(row.Student) ? row.Student[0].name : row.Student.name;
     }
 
     return {
-      id: r.studentId,
-      name: studentData?.name || r.studentId,
-      status: attendanceToStatus[r.status as AttendanceStatus] || 'normal',
-      observaciones: r.observaciones,
-      deviceTypeId: r.deviceTypeId ?? null,
-      deviceType: r.deviceTypeId !== null && r.deviceTypeId !== undefined ? deviceTypeMap.get(r.deviceTypeId) || null : null,
-      seatDeviceTypeId: r.seatDeviceTypeId ?? null,
-      seatDeviceType: r.seatDeviceTypeId !== null && r.seatDeviceTypeId !== undefined ? deviceTypeMap.get(r.seatDeviceTypeId) || null : null
+      id: row.studentId,
+      name: fallbackName,
+      status: attendanceToStatus[row.status as AttendanceStatus] || 'normal',
+      observaciones: row.observaciones,
+      deviceTypeId: row.deviceTypeId ?? null,
+      deviceType: row.deviceTypeId ? deviceTypeMap.get(row.deviceTypeId) || null : null,
+      seatDeviceTypeId: row.seatDeviceTypeId ?? null,
+      seatDeviceType: row.seatDeviceTypeId ? deviceTypeMap.get(row.seatDeviceTypeId) || null : null
     };
   });
 }
 
-// Actualiza el estado de un alumno (llegada tardía, ausente, etc.)
-export async function updateStudentStatus(studentId: string, classId: string, status: StudentStatus, observaciones?: string) {
+export async function updateStudentStatus(studentId: string, classId: string, status: StudentStatus, observaciones?: string, providedDate?: string | null) {
+  const { data: records } = await supabase
+    .from('Attendance')
+    .select('id')
+    .eq('classSessionId', classId)
+    .eq('studentId', studentId)
+    .order('checkInTime', { ascending: false })
+    .limit(1);
+
+  if (!records || records.length === 0) return;
+
   const payload: Record<string, unknown> = { status: statusToAttendance[status] };
   if (observaciones !== undefined) payload.observaciones = observaciones;
 
-  const { error } = await supabase
-    .from('Attendance')
-    .update(payload)
-    .eq('classSessionId', classId)
-    .eq('studentId', studentId);
-
-  if (error) throw error;
-  revalidatePath('/');
+  await supabase.from('Attendance').update(payload).eq('id', records[0].id);
+  revalidatePath('/maestro/dashboard');
 }
 
-// Elimina a un alumno de la lista
 export async function deleteStudent(studentId: string, classId: string, providedDate?: string | null) {
-  let query = supabase
+  const { data: records } = await supabase
     .from('Attendance')
-    .delete()
-    .eq('classSessionId', classId)
-    .eq('studentId', studentId);
-
-  const hoy = providedDate || new Date().toISOString().split('T')[0];
-  const { data: classDate } = await supabase
-    .from('ClassDate')
     .select('id')
-    .eq('idClassSession', classId)
-    .eq('fechaClase', hoy)
-    .maybeSingle();
+    .eq('classSessionId', classId)
+    .eq('studentId', studentId)
+    .order('checkInTime', { ascending: false })
+    .limit(1);
 
-  if (classDate?.id) {
-    query = query.eq('claseId', classDate.id);
-  }
+  if (!records || records.length === 0) return;
 
-  const { error } = await query;
-
-  if (error) throw error;
-  revalidatePath('/');
+  await supabase.from('Attendance').delete().eq('id', records[0].id);
+  revalidatePath('/maestro/dashboard');
 }
 
-// Valida un codigo activo y regresa la clase asociada de manera stateless
 export async function validateActiveCode(code: string): Promise<string | null> {
   const normalizedCode = code.trim().toLowerCase();
   if (normalizedCode.length !== 7) return null;
 
   const letter = normalizedCode[0];
   const otpCode = normalizedCode.slice(1);
-  const labIndex = letter.charCodeAt(0) - 96; // 'a' -> 1, 'b' -> 2
+  const labIndex = letter.charCodeAt(0) - 96; 
   
   if (labIndex <= 0) return null;
 
-  const { data: labSecret, error: secretError } = await supabase
-    .from('LabSecretos')
-    .select('secreto')
-    .eq('idLaboratory', labIndex)
-    .maybeSingle();
-
+  const { data: labSecret, error: secretError } = await supabase.from('LabSecretos').select('secreto').eq('idLaboratory', labIndex).maybeSingle();
   if (secretError || !labSecret?.secreto) return null;
 
   const { verify } = await import('otplib');
   const isValid = await verify({ token: otpCode, secret: labSecret.secreto });
-  
   if (!isValid.valid) return null;
 
   const { data: classes, error: classError } = await supabase
@@ -251,7 +221,6 @@ export async function validateActiveCode(code: string): Promise<string | null> {
   return activeClass ? String((activeClass as { id: number }).id) : null;
 }
 
-// Registra un alumno validando que el código siga siendo correcto
 export async function registerStudent(
   studentData: {
     id: string;
@@ -267,92 +236,65 @@ export async function registerStudent(
   }
 ) {
   const classId = studentData.classId || (studentData.code ? await validateActiveCode(studentData.code) : null);
-  if (!classId) {
-    return { success: false, error: 'Clase no encontrada para el codigo proporcionado.' };
-  }
+  if (!classId) return { success: false, error: 'Clase no encontrada para el codigo proporcionado (Verifica la hora).' };
 
-  const { data: student, error: studentError } = await supabase
-    .from('Student')
-    .select('id')
-    .eq('id', studentData.id)
-    .maybeSingle();
-
+  const { data: student, error: studentError } = await supabase.from('Student').select('id').eq('id', studentData.id).maybeSingle();
   if (studentError) throw studentError;
-  if (!student) {
-    return { success: false, error: 'El alumno no existe en la tabla Student.' };
-  }
+  if (!student) return { success: false, error: 'El alumno no existe en la base de datos.' };
 
   const { data: classSession, error: classError } = await supabase
     .from('ClassSession')
-    .select(`
-      teacherId, 
-      asignaturaId,
-      descripcion,
-      Asignatura ( name, "materiaCode" )
-    `)
+    .select('teacherId, asignaturaId, Asignatura ( name, materiaCode )')
     .eq('id', classId)
     .maybeSingle();
 
   if (classError) throw classError;
-  if (!classSession?.teacherId) {
-    return { success: false, error: 'No se pudo determinar el maestro de la clase.' };
+  if (!classSession?.teacherId) return { success: false, error: 'No se pudo determinar el maestro de la clase.' };
+
+  let nombreAsignatura = '';
+  let codigoAsignatura = '';
+  if (classSession.Asignatura) {
+    const asig = Array.isArray(classSession.Asignatura) ? classSession.Asignatura[0] : classSession.Asignatura;
+    nombreAsignatura = (asig.name || '').toUpperCase();
+    codigoAsignatura = asig.materiaCode || '';
   }
 
-  const asignaturaData = classSession.Asignatura as { name?: string, materiaCode?: string } | null;
-  const esEventoEspecial = 
-    asignaturaData?.materiaCode === '000000' || 
-    asignaturaData?.name === 'EVENTO' || 
-    classSession.descripcion !== null;
+  const esEventoEspecial = codigoAsignatura === '000000' || nombreAsignatura === 'EVENTO' || nombreAsignatura.startsWith('EVENTO:');
 
-  if (!esEventoEspecial && classSession.asignaturaId) {
+  if (!esEventoEspecial) {
+    if (!classSession.asignaturaId) return { success: false, error: 'Error: La clase no tiene asignatura válida.' };
+
     const { data: inscripcion, error: inscError } = await supabase
       .from('Cursa') 
       .select('studentId')
       .eq('studentId', studentData.id)
       .eq('asignaturaId', classSession.asignaturaId)
+      .limit(1)
       .maybeSingle();
 
     if (inscError) throw inscError;
-
-    if (!inscripcion) {
-      return { 
-        success: false, 
-        error: 'Acceso denegado: No tienes esta materia registrada en tu carga académica.' 
-      };
-    }
+    if (!inscripcion) return { success: false, error: 'Acceso denegado: No tienes esta materia registrada en tu carga académica.' };
   }
 
-  const hoy = studentData.classDate || new Date().toISOString().split('T')[0];
-  const { data: classDate } = await supabase
-    .from('ClassDate')
-    .select('id')
-    .eq('idClassSession', classId)
-    .eq('fechaClase', hoy)
-    .maybeSingle();
-
-  let attendanceQuery = supabase
+  const limiteHoras = new Date(Date.now() - 16 * 60 * 60 * 1000).toISOString();
+  
+  const { data: existingAttendance } = await supabase
     .from('Attendance')
     .select('id')
     .eq('classSessionId', classId)
-    .eq('studentId', studentData.id);
+    .eq('studentId', studentData.id)
+    .gte('checkInTime', limiteHoras)
+    .limit(1)
+    .maybeSingle();
 
-  if (classDate?.id) {
-    attendanceQuery = attendanceQuery.eq('claseId', classDate.id);
-  } else {
-    const startOfDay = new Date(hoy + 'T00:00:00');
-    const endOfDay = new Date(hoy + 'T23:59:59.999');
-    attendanceQuery = attendanceQuery.gte('checkInTime', startOfDay.toISOString()).lte('checkInTime', endOfDay.toISOString());
-  }
+  if (existingAttendance?.id) return { success: false, error: 'Ya has registrado tu asistencia para esta clase el día de hoy.' };
 
-  const { data: existingAttendance, error: attendanceQueryError } = await attendanceQuery.maybeSingle();
-
-  if (attendanceQueryError) throw attendanceQueryError;
+  const hoyLocal = getTijuanaTimeInfo().ymd;
+  const hoy = studentData.classDate || hoyLocal;
+  const { data: classDate } = await supabase.from('ClassDate').select('id').eq('idClassSession', classId).eq('fechaClase', hoy).maybeSingle();
 
   const deviceTypeId = await resolveDeviceTypeIdFromValue(studentData.deviceTypeId, studentData.deviceType);
-
-  if (deviceTypeId === null || deviceTypeId === undefined) {
-    return { success: false, error: 'No se pudo determinar el tipo de dispositivo.' };
-  }
+  if (deviceTypeId === null || deviceTypeId === undefined) return { success: false, error: 'No se pudo determinar el tipo de dispositivo.' };
 
   const seatDeviceTypeId = normalizeSeatDeviceTypeId(studentData.seatDeviceTypeId);
 
@@ -363,80 +305,114 @@ export async function registerStudent(
     registrationCode: studentData.code,
     deviceTypeId,
     seatDeviceTypeId,
-    claseId: classDate?.id || null,
+    claseId: classDate?.id || null, 
     status: 'PRESENT' as AttendanceStatus,
     ...(studentData.observaciones ? { observaciones: studentData.observaciones } : {})
   };
 
-  if (existingAttendance?.id) {
-    return { success: false, error: 'Ya has registrado tu asistencia para esta clase.' };
-  } else {
-    const { error } = await supabase
-      .from('Attendance')
-      .insert([payload as Record<string, unknown>]);
+  const { error } = await supabase.from('Attendance').insert([payload as Record<string, unknown>]);
+  if (error) throw error;
 
-    if (error) throw error;
-  }
-
-  revalidatePath('/maestro/dashboard'); // Actualiza el panel del maestro automáticamente
+  revalidatePath('/maestro/dashboard');
   return { success: true };
 }
 
 export async function getClassInfo(classId: string) {
-  const { data, error } = await supabase
-    .from('ClassSession')
-    .select(`
-      id,
-      Asignatura ( name ),
-      Grupo ( nombre )
-    `)
-    .eq('id', classId)
-    .maybeSingle();
-
+  const { data, error } = await supabase.from('ClassSession').select('id, Asignatura ( name ), Grupo ( nombre )').eq('id', classId).maybeSingle();
   if (error || !data) return null;
-
   return {
     className: (data.Asignatura as { name: string })?.name || 'Clase Desconocida',
     groupName: (data.Grupo as { nombre: string })?.nombre || 'Sin Grupo'
   };
 }
 
+export async function finalizarClaseParaHoy(classId: string, providedDate?: string | null) {
+  const hoy = providedDate || getTijuanaTimeInfo().ymd;
 
-export async function finalizarClaseParaHoy(classId: string) {
-  const hoy = new Date().toISOString().split('T')[0];
+  const { data: session } = await supabase.from('ClassSession').select('periodoId').eq('id', classId).single();
+  let pId = session?.periodoId;
+  let semActual = 1;
 
-  const { data: periodoActivo } = await supabase
-    .from('Periodo')
-    .select('id, fechaInicio')
-    .eq('activo', true)
-    .single();
+  if (!pId) {
+    const { data: periodoActivo } = await supabase.from('Periodo').select('id, fechaInicio').eq('activo', true).single();
+    if (periodoActivo) {
+      pId = periodoActivo.id;
+      const inicio = new Date(periodoActivo.fechaInicio + 'T00:00:00');
+      const diffDays = Math.ceil(Math.abs(new Date().getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+      semActual = Math.floor(diffDays / 7) + 1;
+    }
+  } else {
+    const { data: specificPeriod } = await supabase.from('Periodo').select('fechaInicio').eq('id', pId).single();
+    if (specificPeriod?.fechaInicio) {
+      const inicio = new Date(specificPeriod.fechaInicio + 'T00:00:00');
+      const diffDays = Math.ceil(Math.abs(new Date().getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+      semActual = Math.floor(diffDays / 7) + 1;
+    }
+  }
 
-  if (!periodoActivo) return { success: false, error: 'No hay periodo activo' };
+  if (!pId) {
+    await supabase.from('ClassSession').update({ status: 'ENDED' }).eq('id', classId);
+    revalidatePath('/maestro/dashboard');
+    return { success: true };
+  }
 
-  const inicio = new Date(periodoActivo.fechaInicio + 'T00:00:00');
-  const ahora = new Date();
-  const diffTime = Math.abs(ahora.getTime() - inicio.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const semanaActual = Math.floor(diffDays / 7) + 1;
-
-  const { data: existingLog } = await supabase
-    .from('ClassLog')
-    .select('id')
-    .eq('classSessionId', classId)
-    .eq('semana', semanaActual)
-    .maybeSingle();
+  const { data: existingLog } = await supabase.from('ClassLog')
+    .select('id').eq('classSessionId', classId).eq('fecha', hoy).maybeSingle();
 
   if (existingLog) {
     await supabase.from('ClassLog').update({ estadoAuditoria: 'FINALIZADA' }).eq('id', existingLog.id);
   } else {
     await supabase.from('ClassLog').insert({
       classSessionId: parseInt(classId),
-      semana: semanaActual,
+      semana: semActual,
       fecha: hoy,
       estadoAuditoria: 'FINALIZADA',
-      periodoId: periodoActivo.id
+      periodoId: pId
     });
   }
 
+  revalidatePath('/maestro/dashboard');
   return { success: true };
+}
+
+export async function getDashboardClassDetails(classId: string, providedDate?: string | null) {
+  const hoy = providedDate || getTijuanaTimeInfo().ymd;
+
+  const { data, error } = await supabase
+    .from('ClassSession')
+    .select(`
+      id, teacherId, status, dayOfWeek, startTime, endTime, laboratoryId, descripcion,
+      Laboratory ( name ), Asignatura ( name, materiaCode ), User!teacherId ( name )
+    `)
+    .eq('id', classId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const { data: log } = await supabase
+    .from('ClassLog')
+    .select('estadoAuditoria')
+    .eq('classSessionId', classId)
+    .eq('fecha', hoy)
+    .maybeSingle();
+
+  const finalStatus = (log?.estadoAuditoria === 'FINALIZADA') ? 'FINALIZADA' : data.status;
+
+  const asig = Array.isArray(data.Asignatura) ? data.Asignatura[0] : data.Asignatura;
+  const lab = Array.isArray(data.Laboratory) ? data.Laboratory[0] : data.Laboratory;
+  const user = Array.isArray(data.User) ? data.User[0] : data.User;
+
+  return {
+    id: String(data.id),
+    maestroId: data.teacherId ? String(data.teacherId) : undefined,
+    maestroNombre: user?.name || '',
+    status: finalStatus, 
+    nombre: asig?.name || 'Clase sin nombre',
+    laboratorio: lab?.name || 'Sin laboratorio',
+    laboratorioId: data.laboratoryId ? String(data.laboratoryId) : '',
+    dayOfWeek: data.dayOfWeek,
+    horario: `${data.startTime.substring(0, 5)}-${data.endTime.substring(0, 5)}`,
+    color: '#3B82F6',
+    descripcion: data.descripcion
+  };
 }
