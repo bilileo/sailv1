@@ -45,7 +45,9 @@ export interface NuevaClase {
   dia: string;
   horario: string;
   duracion: number;
-  grupoId: string;
+  grupoId: string | null;
+  tipoSession?: string | null;
+  descripcion?: string | null;
   grupo?: string;
   repeat?: boolean;
   fechaClase?: string;

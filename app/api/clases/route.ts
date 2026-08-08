@@ -132,6 +132,7 @@ export async function GET(request: Request) {
         id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupoId, asignaturaId, tipoSession,
         Laboratory(id, name),
         Asignatura(id, name, color),
+        descripcion,
         Grupo(id, nombre),
         ClassLog(estadoAuditoria, semana),
         ClassDate(fechaClase)
@@ -206,6 +207,7 @@ export async function GET(request: Request) {
         laboratorio: laboratory ? laboratory['name'] : 'Sin Asignar',
         laboratorioId: laboratory?.['id'] || row['laboratoryId'],
         dayOfWeek: row['dayOfWeek'],
+        descripcion: row['descripcion'],
         horario: `${sHour}:00 - ${eHour}:00`,
         color: asignatura?.['color'] || '#3B82F6'
       };
@@ -223,7 +225,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    if (!body?.nombre || !body?.laboratorioId || !body?.maestroId || !body?.grupoId) {
+   if (!body?.nombre || !body?.laboratorioId || !body?.maestroId) {
       return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 });
     }
 
@@ -243,9 +245,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No se pudo resolver la asignatura' }, { status: 400 });
     }
 
-    const grupoId = Number(body.grupoId);
-
-    if (Number.isNaN(grupoId)) {
+    const grupoId = body.grupoId ? Number(body.grupoId) : null;
+    if (body.grupoId && Number.isNaN(grupoId)) {
       return NextResponse.json({ error: 'Selecciona un grupo válido' }, { status: 400 });
     }
 
@@ -266,12 +267,13 @@ export async function POST(request: Request) {
         dayOfWeek: dayOfWeek,
         startTime: startTime,
         endTime: endTime,
+        descripcion: body.descripcion || null,
         laboratoryId: parseInt(body.laboratorioId, 10),
         teacherId: body.maestroId,
         status: 'ACTIVE',
         periodoId: periodoActivo.id,
-        grupoId,
-        tipoSession: body.tipoSession || 'CLASE'
+        grupoId: grupoId,
+        tipoSession: body.tipoSession || null,
       }])
       .select('id')
       .single();
@@ -344,7 +346,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'ID de sesión no proporcionado' }, { status: 400 });
     }
 
-    if (!body?.laboratorioId || !body?.maestroId || !body?.asignaturaId || !body?.grupoId || !body?.horario || !body?.dia) {
+    if (!body?.laboratorioId || !body?.maestroId || !body?.asignaturaId || !body?.horario || !body?.dia) {
       return NextResponse.json({ error: 'Faltan datos obligatorios para editar la sesión' }, { status: 400 });
     }
 
@@ -360,7 +362,7 @@ export async function PUT(request: Request) {
 
     const asignaturaId = Number(body.asignaturaId);
     const maestroId = Number(body.maestroId);
-    const grupoId = Number(body.grupoId);
+    const grupoId = body.grupoId ? Number(body.grupoId) : null;
 
     if (Number.isNaN(asignaturaId)) {
       return NextResponse.json({ error: 'Selecciona una asignatura válida' }, { status: 400 });
@@ -378,8 +380,9 @@ export async function PUT(request: Request) {
       laboratoryId: parseInt(body.laboratorioId, 10),
       teacherId: maestroId,
       asignaturaId,
-      grupoId,
-      tipoSession: body.tipoSession || 'CLASE',
+      grupoId: grupoId,
+      descripcion: body.descripcion || null,
+      tipoSession: body.tipoSession || null,
       dayOfWeek: dayOfWeek,
       startTime: startTime,
       endTime: endTime,

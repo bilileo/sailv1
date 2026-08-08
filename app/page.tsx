@@ -27,6 +27,7 @@ interface Clase {
   tipoSession?: string;
   horario: string;
   status?: string;
+  descripcion?: string;
   dayOfWeek: number;
   color?: string;
   grupo?: string;
@@ -551,8 +552,22 @@ useEffect(() => {
     const colorClase = encontrada.color || 'bg-blue-600';
     const esHex = colorClase.startsWith('#');
 
-    const esEvento = encontrada.nombre.toUpperCase().startsWith('EVENTO:');
-    const nombreLimpio = esEvento ? encontrada.nombre.substring(7).trim() : encontrada.nombre;
+    const nombreUpper = encontrada.nombre.toUpperCase();
+    const esEvento = nombreUpper === 'EVENTO' || nombreUpper.startsWith('EVENTO:');
+
+    let nombreLimpio = encontrada.nombre;
+    if (esEvento) {
+      if (encontrada.descripcion && encontrada.descripcion.trim() !== '') {
+        nombreLimpio = encontrada.descripcion;
+      } 
+      else if (nombreUpper === 'EVENTO') {
+        nombreLimpio = 'Sesión General';
+      } 
+      else {
+        const indexDosPuntos = encontrada.nombre.indexOf(':');
+        nombreLimpio = indexDosPuntos !== -1 ? encontrada.nombre.substring(indexDosPuntos + 1).trim() : encontrada.nombre;
+      }
+    }
     const esLaboratorio = encontrada.tipoSession === 'LABORATORIO';
 
     const TituloSesion = (

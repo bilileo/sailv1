@@ -43,6 +43,8 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
   const [duracion, setDuracion] = useState(initialValues?.duracion || 1);
   const [grupoId, setGrupoId] = useState(initialValues?.grupoId || '');
   const [tipoSession, setTipoSession] = useState('CLASE');
+  const [esEvento, setEsEvento] = useState(false);
+  const [descripcionEvento, setDescripcionEvento] = useState('');
   const [repeat, setRepeat] = useState(false);
   const [fechaClase, setFechaClase] = useState(initialValues?.fecha || '');
   const [semana, setSemana] = useState(initialValues?.semana || 1);
@@ -92,18 +94,10 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
     return asignaturas.filter(a => asignaturasPermitidas.includes(a.id));
   }, [asignaturas, grupoId, relacionesLlevan]);
 
-  // Cargar maestros según la asignatura seleccionada
+  // Cargar maestros según la asignatura seleccionada o traer a todos si es evento
   useEffect(() => {
-    const cargarMaestrosPorAsignatura = async () => {
-      if (!nombre) {
-        setMaestros([]);
-        setMaestro('');
-        return;
-      }
-
-      const asignaturaSeleccionada = asignaturas.find((a) => a.name === nombre);
-
-      if (!asignaturaSeleccionada) {
+    const cargarPersonal = async () => {
+      if (!esEvento && !nombre) {
         setMaestros([]);
         setMaestro('');
         return;
@@ -112,26 +106,34 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       setCargandoMaestros(true);
 
       try {
-        const res = await fetch(`/api/maestros?asignaturaId=${asignaturaSeleccionada.id}`);
+        const timestamp = new Date().getTime();
+        let url = `/api/maestros?t=${timestamp}`;
+
+        if (!esEvento) {
+          const asignaturaSeleccionada = asignaturas.find((a) => a.name === nombre);
+          if (!asignaturaSeleccionada) {
+            setMaestros([]);
+            setMaestro('');
+            setCargandoMaestros(false);
+            return;
+          }
+          url += `&asignaturaId=${asignaturaSeleccionada.id}`;
+        }
+
+        const res = await fetch(url, { cache: 'no-store' });
 
         if (res.ok) {
           const data: Maestro[] = await res.json();
-
           setMaestros(data);
 
           setMaestro((maestroActual) => {
             const maestroSigueDisponible = data.some((m) => m.id.toString() === maestroActual);
-
-            if (maestroSigueDisponible) {
-              return maestroActual;
-            }
-
+            if (maestroSigueDisponible) return maestroActual;
             return data.length > 0 ? data[0].id.toString() : '';
           });
         } else {
           setMaestros([]);
           setMaestro('');
-          toast.error('Error al cargar maestros de la asignatura');
         }
       } catch (error) {
         console.error('Error cargando maestros:', error);
@@ -142,8 +144,8 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       }
     };
 
-    cargarMaestrosPorAsignatura();
-  }, [nombre, asignaturas]);
+    cargarPersonal();
+  }, [nombre, asignaturas, esEvento]); 
 
 
   // Obtenemos las asignaturas disponibles para seleccionarlas en el formulario
@@ -244,11 +246,29 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
 
     console.log('Validando clase con datos:', { nombre, lab, maestro, dia, horario, duracion, grupoId });
 
-    // Validaciones
-    if (!nombre.trim()) {
-      nuevosErrores.nombre = 'Por favor, ingresa el nombre de la asignatura';
-    } else if (nombre.trim().length < 3) {
-      nuevosErrores.nombre = 'El nombre debe tener al menos 3 caracteres';
+    let finalNombre = nombre;
+    let finalGrupoId = grupoId;
+    let finalTipoSession = tipoSession;
+    let finalDescripcion = null;
+
+    if (esEvento) {
+      const asigEvento = asignaturas.find(a => a.materiaCode === '000000');
+      if (!asigEvento) {
+        toast.error('Falta crear la asignatura 000000 en la base de datos');
+        setEnviando(false);
+        return;
+      }
+      finalNombre = asigEvento.name; 
+      finalGrupoId = '';
+      finalTipoSession = ''; 
+      finalDescripcion = descripcionEvento; 
+
+      if (!descripcionEvento.trim()) {
+        nuevosErrores.nombre = 'Ingresa el nombre del evento';
+      }
+    } else {
+      if (!nombre.trim()) nuevosErrores.nombre = 'Selecciona una asignatura';
+      if (!grupoId) nuevosErrores.grupo = 'Selecciona un grupo';
     }
 
     if (!lab || lab === '') {
@@ -261,10 +281,6 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
 
     if (!horario) {
       nuevosErrores.horario = 'Debes seleccionar un bloque horario disponible';
-    }
-
-    if (!grupoId) {
-      nuevosErrores.grupo = 'Por favor, selecciona un grupo';
     }
 
     if (!repeat && !fechaClase) {
@@ -292,14 +308,15 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
     setEnviando(true);
 
     const datosClase = {
-      nombre,
+      nombre: finalNombre,
+      descripcion: finalDescripcion,
       laboratorioId: lab,
       maestroId: maestro,
       dia,
       horario,
       duracion,
-      tipoSession,
-      grupoId,
+      grupoId: finalGrupoId === '' ? null : finalGrupoId,
+      tipoSession: finalTipoSession === '' ? null : finalTipoSession,
       repeat,
       fechaClase,
       semana
@@ -330,90 +347,73 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
       {/* Formulario de creación de clase */}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          {/* Grupo */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
-            <select
-              value={grupoId}
-              onChange={(e) => {
-                const newGrupoId = e.target.value;
-                setGrupoId(newGrupoId);
-                if (newGrupoId && nombre) {
-                  const asignaturaSeleccionada = asignaturas.find(a => a.name === nombre);
-                  if (asignaturaSeleccionada) {
-                     const isValid = relacionesLlevan.some(r => r.idAsignatura === asignaturaSeleccionada.id && r.idGrupo.toString() === newGrupoId);
-                     if (!isValid) {
-                        setNombre('');
-                        setMaestro('');
-                     }
-                  }
-                }
-                if (errores.grupo) setErrores({ ...errores, grupo: undefined });
-              }}
-              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${
-                errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
-            >
-              <option value="">Seleccionar grupo...</option>
-              {gruposVisibles.map((g) => (
-                <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
-              ))}
-            </select>
-            {grupos.length === 0 && (
-              <p className="text-xs text-gray-500 mt-1">Primero registra un grupo en la pestaña Grupos.</p>
-            )}
-            {errores.grupo && (
-              <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
-                <span>{errores.grupo}</span>
-              </div>
-            )}
-          </div>
+        
+        {/* === CHECKBOX ¿ES EVENTO? === */}
+        <div className="flex items-center space-x-2 mb-4 bg-purple-50 p-2 rounded border border-purple-100">
+          <input
+            type="checkbox"
+            id="esEventoCheckbox"
+            checked={esEvento}
+            onChange={(e) => {
+              setEsEvento(e.target.checked);
+              setErrores({}); // Limpiamos errores al cambiar de modo
+            }}
+            className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+          />
+          <label htmlFor="esEventoCheckbox" className="text-sm font-bold text-purple-900 cursor-pointer">
+            Evento Especial
+          </label>
+        </div>
 
-          {/* Asignatura */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 mb-1">Asignatura</label>
+        {/* === 1. ASIGNATURA O NOMBRE DEL EVENTO (Ancho completo) === */}
+        <div>
+          <label className="block text-sm font-bold text-gray-800 mb-1">
+            {esEvento ? 'Nombre del Evento' : 'Asignatura'}
+          </label>
+          {esEvento ? (
+            <input
+              type="text"
+              value={descripcionEvento}
+              onChange={(e) => {
+                setDescripcionEvento(e.target.value);
+                if (errores.nombre) setErrores({ ...errores, nombre: undefined });
+              }}
+              placeholder="Ej. Niñas en la ciencia"
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium focus:border-purple-500 outline-none transition-colors ${
+                errores.nombre ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
+            />
+          ) : (
             <select
               value={nombre}
               onChange={(e) => {
-                const newNombre = e.target.value;
-                setNombre(newNombre);
+                setNombre(e.target.value);
                 setMaestro('');
-                if (newNombre && grupoId) {
-                  const asignaturaSeleccionada = asignaturas.find(a => a.name === newNombre);
-                  if (asignaturaSeleccionada) {
-                     const isValid = relacionesLlevan.some(r => r.idAsignatura === asignaturaSeleccionada.id && r.idGrupo.toString() === grupoId);
-                     if (!isValid) setGrupoId('');
-                  }
-                }
                 if (errores.nombre) setErrores({ ...errores, nombre: undefined });
                 if (errores.maestro) setErrores({ ...errores, maestro: undefined });
               }}
-              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.nombre
-                ? 'border-red-500 bg-red-50'
-                : 'border-gray-300'
-                }`}
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors outline-none ${
+                errores.nombre ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-[#0b6e3f]'
+              }`}
             >
               <option value="">Seleccionar...</option>
-              {asignaturasVisibles.map((a) => (
+              {asignaturasVisibles.filter(a => a.materiaCode !== '000000').map((a) => (
                 <option key={a.id} value={a.name}>
                   {a.materiaCode + ' - ' + a.name}
                 </option>
               ))}
             </select>
-            {errores.nombre && (
-              <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
-                <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
-                <span>{errores.nombre}</span>
-              </div>
-            )}
-          </div>
+          )}
+          {errores.nombre && (
+            <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+              <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
+              <span>{errores.nombre}</span>
+            </div>
+          )}
         </div>
 
-        {/* Bloque de columnas para mejor visualización */}
+        {/* === 2. LABORATORIO Y MAESTRO (2 Columnas) === */}
         <div className="grid grid-cols-2 gap-4">
-          {/* Laboratorio donde se impartirá */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Laboratorio</label>
             <select
@@ -422,10 +422,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
                 setLab(e.target.value);
                 if (errores.lab) setErrores({ ...errores, lab: undefined });
               }}
-              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.lab
-                ? 'border-red-500 bg-red-50'
-                : 'border-gray-300'
-                }`}
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors ${errores.lab ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
             >
               <option value="">Seleccionar...</option>
               {laboratorios.map((l) => (
@@ -440,34 +437,31 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
             )}
           </div>
 
-          {/* Maestro que impartirá la clase */}
+          {/* Maestro que impartirá la clase / Responsable del evento */}
           <div>
-            <label className="block text-sm font-bold text-gray-800 mb-1">Maestro</label>
+            <label className="block text-sm font-bold text-gray-800 mb-1">
+              {esEvento ? 'Responsable' : 'Maestro'}
+            </label>
             <select
               value={maestro}
-              disabled={!nombre || cargandoMaestros || maestros.length === 0}
+              disabled={(!nombre && !esEvento) || cargandoMaestros || maestros.length === 0}
               onChange={(e) => {
                 setMaestro(e.target.value);
                 if (errores.maestro) setErrores({ ...errores, maestro: undefined });
               }}
-              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed ${errores.maestro
-                ? 'border-red-500 bg-red-50'
-                : 'border-gray-300'
-                }`}
+              className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed ${errores.maestro ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
             >
-              {!nombre ? (
+              {(!nombre && !esEvento) ? (
                 <option value="">Primero selecciona una asignatura</option>
               ) : cargandoMaestros ? (
-                <option value="">Cargando maestros...</option>
+                <option value="">Cargando responsables...</option>
               ) : maestros.length === 0 ? (
-                <option value="">No hay maestros asignados</option>
+                <option value="">No hay personal disponible</option>
               ) : (
                 <>
                   <option value="">Seleccionar...</option>
                   {maestros.map((m) => (
-                    <option key={m.id} value={m.id.toString()}>
-                      {m.name}
-                    </option>
+                    <option key={m.id} value={m.id.toString()}>{m.name}</option>
                   ))}
                 </>
               )}
@@ -481,20 +475,49 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
           </div>
         </div>
 
-        {/* Tipo de Sesión (ahora ocupa todo el ancho o se mantiene solo) */}
-        <div>
-          <label className="block text-sm font-bold text-gray-800 mb-1">Tipo de Sesión</label>
-          <select
-            value={tipoSession}
-            onChange={(e) => setTipoSession(e.target.value)}
-            className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors focus:border-[#0b6e3f] outline-none"
-          >
-            <option value="CLASE">Clase (Teoría)</option>
-            <option value="LABORATORIO">Laboratorio (Práctica)</option>
-          </select>
-        </div>
+        {/* === 3. GRUPO Y TIPO DE SESIÓN (SOLO SI NO ES EVENTO) === */}
+        {!esEvento && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-800 mb-1">Grupo</label>
+              <select
+                value={grupoId}
+                onChange={(e) => {
+                  setGrupoId(e.target.value);
+                  if (errores.grupo) setErrores({ ...errores, grupo: undefined });
+                }}
+                className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors outline-none ${
+                  errores.grupo ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-[#0b6e3f]'
+                }`}
+              >
+                <option value="">Seleccionar grupo...</option>
+                {gruposVisibles.map((g) => (
+                  <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
+                ))}
+              </select>
+              {errores.grupo && (
+                <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
+                  <span>{errores.grupo}</span>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-800 mb-1">Tipo de Sesión</label>
+              <select
+                value={tipoSession}
+                onChange={(e) => setTipoSession(e.target.value)}
+                className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium transition-colors focus:border-[#0b6e3f] outline-none"
+              >
+                <option value="CLASE">Clase (Teoría)</option>
+                <option value="LABORATORIO">Laboratorio (Práctica)</option>
+              </select>
+            </div>
+          </div>
+        )}
 
-        <div className="flex items-center mb-4 mt-2">
+        {/* === 4. OPCIONES DE REPETICIÓN === */}
+        <div className="flex items-center mt-2">
           <input
             type="checkbox"
             id="repeatClass"
@@ -507,6 +530,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
           </label>
         </div>
 
+        {/* === 5. FECHAS, DÍA Y DURACIÓN === */}
         <div className="grid grid-cols-2 gap-4">
           {repeat ? (
             <>
@@ -522,17 +546,6 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-800 mb-1">Semana Inicial</label>
-                <input 
-                  type="number" 
-                  min="1" 
-                  max="52" 
-                  value={semana} 
-                  onChange={(e) => setSemana(parseInt(e.target.value))} 
-                  className="w-full border-2 border-gray-300 rounded-sm px-3 py-2 text-sm text-black font-medium" 
-                />
-              </div>
             </>
           ) : (
             <div>
@@ -546,11 +559,13 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
                   setFechaClase(e.target.value);
                   if (e.target.value) {
                      const diasMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                     // Usamos una fecha neutral para extraer el día correcto local
                      const newDia = diasMap[new Date(e.target.value + 'T12:00:00').getDay()];
                      setDia(newDia);
                   }
+                  if (errores.fecha) setErrores({ ...errores, fecha: undefined });
                 }} 
-                className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium ${errores.fecha ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black font-medium outline-none ${errores.fecha ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-[#0b6e3f]'}`} 
               />
               {errores.fecha && (
                 <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
@@ -561,7 +576,6 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
             </div>
           )}
 
-          {/* Duración en horas de la clase */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-1">Duración (horas)</label>
             <select
@@ -569,8 +583,6 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
               onChange={(e) => {
                 const nuevaDuracion = parseInt(e.target.value);
                 setDuracion(nuevaDuracion);
-                
-                // Intenta mantener la hora de inicio actual
                 if (horario) {
                   const inicio = parseInt(horario.split('-')[0].trim().split(':')[0]);
                   const fin = inicio + nuevaDuracion;
@@ -590,7 +602,7 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
           </div>
         </div>
 
-        {/* De que hora a que hora será la clase */}
+        {/* === 6. BLOQUE HORARIO (Ancho completo) === */}
         <div>
           <label className="block text-sm font-bold text-gray-800 mb-1">Bloque Horario</label>
           <select
@@ -609,52 +621,19 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
               </option>
             ))}
           </select>
+          {errores.horario && (
+            <div className="flex items-start mt-1 text-red-600 text-xs font-medium">
+              <AlertCircle className="w-3.5 h-3.5 mr-1.5 shrink-0 mt-0.5" />
+              <span>{errores.horario}</span>
+            </div>
+          )}
         </div>
 
-        {/* Antes aquí se seleccionaba el color, pero como ahora el color es parte de la asignatura
-            ps ya no tiene caso
-        <div className="flex gap-3 mt-1 items-center">
-          {// Paleta de colores }
-          {PALETA_COLORES.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setColorFondo(c.clase)}
-              className={`w-8 h-8 rounded-full cursor-pointer transition-all ${c.clase} ${colorFondo === c.clase
-                ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
-                : 'border border-black/10 hover:scale-105 opacity-80 hover:opacity-100'
-                }`}
-              title="Color predefinido"
-            />
-          ))}
-
-          {// Selector personalizado (Botón Arcoíris)}
-          <label
-            className={`relative w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all overflow-hidden ${colorFondo.startsWith('#')
-              ? 'ring-2 ring-offset-2 ring-gray-800 scale-110 shadow-md'
-              : 'border border-gray-300 hover:scale-105 opacity-80 hover:opacity-100'
-              }`}
-            style={
-              colorFondo.startsWith('#')
-                ? { backgroundColor: colorFondo } // Si ya eligió uno, mostramos el color personalizado
-                : { background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' } // Si no arcoíris
-            }
-            title="Elegir color personalizado"
-          >
-            <input
-              type="color"
-              value={colorFondo.startsWith('#') ? colorFondo : '#0b6e3f'}
-              onChange={(e) => setColorFondo(e.target.value)}
-              className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-            />
-          </label>
-        </div>
-        */}
-
+        {/* === BOTÓN GUARDAR === */}
         <button
           type="submit"
           disabled={enviando}
-          className={`w-full text-white py-3 rounded-sm font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 ${enviando
+          className={`w-full text-white py-3 rounded-sm font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 mt-4 ${enviando
             ? 'bg-gray-400 cursor-not-allowed'
             : 'bg-[#0b6e3f] hover:bg-green-800'
             }`}
