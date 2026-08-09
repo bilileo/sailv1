@@ -253,10 +253,12 @@ export function Reportes({
   clases,
   laboratorios,
   claseIdInicial,
+  isMaestro,
 }: {
   clases: ClaseReporte[];
   laboratorios: Laboratorio[];
   claseIdInicial?: string;
+  isMaestro?: boolean;
 }) {
   const [subTab, setSubTab] = useState<'clase' | 'maestro' | 'semana' | 'periodo'>('clase');
   const [busquedaResultadosClase, setBusquedaResultadosClase] = useState('');
@@ -731,7 +733,7 @@ export function Reportes({
 
         {/* Sub-tabs */}
         <div className="flex bg-gray-100 p-1 rounded-sm border border-gray-200 mb-6 w-fit">
-          {SUB_TABS.map(({ id, label, Icon }) => (
+          {SUB_TABS.filter(tab => !isMaestro || tab.id === 'clase').map(({ id, label, Icon }) => (
             <button
               key={id}
               onClick={() => setSubTab(id)}

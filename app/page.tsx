@@ -844,7 +844,7 @@ useEffect(() => {
         )}
 
         {activeTab === 'Reportes' && (
-          <Reportes clases={clases} laboratorios={laboratorios} claseIdInicial={claseReporteId} />
+          <Reportes clases={clases} laboratorios={laboratorios} claseIdInicial={claseReporteId} isMaestro={isMaestro}/>
         )}
 
         {activeTab === 'Incidencias' && (
