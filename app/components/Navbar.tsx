@@ -40,7 +40,7 @@ export function Navbar({
 
   const usuarioPuedeVerTab = (tab: string) => {
     if (usuarioActivo?.role === 'MAESTRO') {
-      return tab === 'Inicio' || tab === 'Incidencias';
+      return tab === 'Inicio' || tab === 'Incidencias' || tab === 'Reportes';
     }
     if (usuarioActivo?.role === 'AUXILIAR' && (tab === 'Administradores' || tab === 'Auxiliares')) {
       return false;
