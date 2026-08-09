@@ -479,12 +479,37 @@ useEffect(() => {
 
   // 4. Filtramos las clases comparando nuestro getNombreDia con el filtro actual
   const clasesDelDia = clases.filter(c => getNombreDia(c.dayOfWeek) === diaFiltro);
-  const salonesOcupados = new Set(clasesDelDia.map(c => c.laboratorio)).size;
 
-  const laboratoriosUnicos = Array.from(new Set(clasesDelDia.map(c => c.laboratorio)));
-  const textoLaboratorios = laboratoriosUnicos.length > 1
-    ? laboratoriosUnicos.slice(0, -1).join(', ') + ' y ' + laboratoriosUnicos[laboratoriosUnicos.length - 1]
-    : laboratoriosUnicos[0] || 'Ninguno';
+  const hoyIdx = new Date().getDay();
+  const diaFiltroIdx = mapaDias.indexOf(diaFiltro);
+  const esDiaActual = diaFiltroIdx === hoyIdx;
+  const horaSistema = new Date().getHours();
+
+  const clasesEnCurso = clasesDelDia.filter(c => {
+    if (!esDiaActual) return false; 
+
+    const esActiva = c.status === 'ACTIVE' || c.status === 'PROGRAMADA';
+    if (!esActiva) return false;
+
+    const partes = c.horario.split('-');
+    if (partes.length < 2) return false;
+    
+    const inicioClase = parseInt(partes[0].trim().split(':')[0]);
+    const finClase = partes[1].trim() === '24:00' ? 24 : parseInt(partes[1].trim().split(':')[0]);
+
+    return horaSistema >= inicioClase && horaSistema < finClase;
+  });
+
+  const salonesOcupados = new Set(clasesEnCurso.map(c => c.laboratorio)).size;
+  const laboratoriosUnicos = Array.from(new Set(clasesEnCurso.map(c => c.laboratorio)));
+  
+  let textoLaboratorios = 'Ningún laboratorio ocupado actualmente';
+  if (laboratoriosUnicos.length === 1) {
+    textoLaboratorios = `Laboratorio ${laboratoriosUnicos[0]} ocupado`;
+  } else if (laboratoriosUnicos.length > 1) {
+    const lista = laboratoriosUnicos.slice(0, -1).join(', ') + ' y ' + laboratoriosUnicos[laboratoriosUnicos.length - 1];
+    textoLaboratorios = `Laboratorios ${lista} ocupados`;
+  }
 
   const renderizarCelda = (horaStr: string, laboratorioName: string) => {
     // Buscar si el diaFiltro es Asueto
@@ -692,9 +717,9 @@ useEffect(() => {
                   </div>
                   <div className="bg-green-700 px-4 py-6 text-white flex-grow">
                     <div className="text-5xl font-bold">{salonesOcupados}/{laboratorios.length}</div>
-                    <div className="text-sm mt-2">
-                      Laboratorios {textoLaboratorios} ocupados
-                    </div>
+                      <div className="text-sm mt-2">
+                        {textoLaboratorios}
+                      </div>
                   </div>
                 </div>
               )}
@@ -844,7 +869,7 @@ useEffect(() => {
         )}
 
         {activeTab === 'Reportes' && (
-          <Reportes clases={clases} laboratorios={laboratorios} claseIdInicial={claseReporteId} />
+          <Reportes clases={clases} laboratorios={laboratorios} claseIdInicial={claseReporteId} isMaestro={isMaestro}/>
         )}
 
         {activeTab === 'Incidencias' && (
