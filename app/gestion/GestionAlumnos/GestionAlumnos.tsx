@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { FormularioAlumnos } from '@/app/formulario/alta/FormularioAlumnos';
 
-interface StudentMinimal { id: string; name: string; email: string }
+interface StudentMinimal { id: string; name: string; lastName: string; email: string }
 
 export function Alumnos() {
   // Abrir un modal para agregar o editar alumnos
@@ -14,6 +14,7 @@ export function Alumnos() {
   const [alumnos, setAlumnos] = useState<StudentMinimal[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [nombre, setNombre] = useState('');
+  const [apellidos, setApellidos] = useState('');
   const [matricula, setMatricula] = useState('');
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
@@ -48,6 +49,7 @@ export function Alumnos() {
     return (
       alumno.id?.toLowerCase().includes(textoBusqueda) ||
       alumno.name?.toLowerCase().includes(textoBusqueda) ||
+      alumno.lastName?.toLowerCase().includes(textoBusqueda) ||
       alumno.email?.toLowerCase().includes(textoBusqueda)
     );
   });
@@ -55,9 +57,9 @@ export function Alumnos() {
   const abrirModal = (alumnos?: StudentMinimal) => {
     setErrores({});
     if (alumnos) {
-      setIdSeleccionado(alumnos.id); setMatricula(alumnos.id); setNombre(alumnos.name); setCorreo(alumnos.email); setPassword('');
+      setIdSeleccionado(alumnos.id); setMatricula(alumnos.id); setNombre(alumnos.name); setApellidos(alumnos.lastName || ''); setCorreo(alumnos.email); setPassword('');
     } else {
-      setIdSeleccionado(null); setMatricula(''); setNombre(''); setCorreo(''); setPassword('');
+      setIdSeleccionado(null); setMatricula(''); setNombre(''); setApellidos(''); setCorreo(''); setPassword('');
     }
     setModalAbierto(true);
   };
@@ -123,7 +125,8 @@ export function Alumnos() {
           <thead className="bg-gray-100 border-b border-gray-200">
             <tr>
               <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase">Matricula</th>
-              <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase">Nombre</th>
+              <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase">Nombre(s)</th>
+              <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase">Apellido(s)</th>
               <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase">Correo</th>
               <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase text-right">Acciones</th>
             </tr>
@@ -139,6 +142,7 @@ export function Alumnos() {
               <tr key={a.id || a.email} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 text-sm text-gray-600">{a.id}</td>
                 <td className="px-4 py-3 text-sm text-gray-600">{a.name}</td>
+                <td className="px-4 py-3 text-sm text-gray-600">{a.lastName}</td>
                 <td className="px-4 py-3 text-sm text-gray-600">{a.email}</td>
                 <td className="px-4 py-3 text-right">
                   <button
@@ -171,6 +175,7 @@ export function Alumnos() {
           idSeleccionado={idSeleccionado}
           matriculaProp={matricula}
           nombreProp={nombre}
+          lastNameProp={apellidos}
           correoProp={correo}
           passwordProp={password}
           />

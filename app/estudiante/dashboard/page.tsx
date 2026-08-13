@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, User, CheckCircle, Clock, XCircle, AlertCircle, LogIn } from 'lucide-react';
 import Link from 'next/link';
+import { Perfil } from '../../components/Perfil';
 
 interface AttendanceRecord {
   id: string;
@@ -16,9 +17,10 @@ interface AttendanceRecord {
 
 export default function StudentDashboard() {
   const router = useRouter();
-  const [session, setSession] = useState<{ id: string, name: string } | null>(null);
+  const [session, setSession] = useState<{ id: string, name: string, lastName?: string } | null>(null);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [perfilAbierto, setPerfilAbierto] = useState(false);
 
   useEffect(() => {
     const sessionData = localStorage.getItem('studentSession');
@@ -84,10 +86,13 @@ export default function StudentDashboard() {
           <span className="text-xl font-bold text-[#1a73e8]">SAIL Estudiante</span>
         </div>
         <div className="flex items-center space-x-4 text-sm font-bold">
-          <div className="flex items-center text-gray-700">
+          <button 
+            onClick={() => setPerfilAbierto(true)}
+            className="flex items-center text-gray-700 hover:text-black hover:bg-gray-100 p-2 rounded transition-colors"
+          >
             <User className="w-4 h-4 mr-2" />
-            {session ? session.name : 'Cargando...'}
-          </div>
+            {session ? `${session.name} ${session.lastName || ''}`.trim() : 'Cargando...'}
+          </button>
           <button
             onClick={() => {
               localStorage.removeItem('studentSession');
@@ -99,6 +104,13 @@ export default function StudentDashboard() {
             <span>Cerrar Sesion</span>
           </button>
         </div>
+        
+        {perfilAbierto && session && (
+          <Perfil 
+            usuario={{ ...session, role: 'ESTUDIANTE' }} 
+            onClose={() => setPerfilAbierto(false)} 
+          />
+        )}
       </nav>
 
       <main className="max-w-6xl mx-auto p-6 mt-4">

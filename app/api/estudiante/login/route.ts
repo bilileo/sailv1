@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
     const { data: student, error } = await supabase
       .from('Student')
-      .select('id, name, email, password')
+      .select('id, name, lastName, email, password')
       .eq('email', body.email)
       .maybeSingle();
 
@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       id: student.id,
       name: student.name,
+      lastName: student.lastName,
       email: student.email
     });
   } catch (error: unknown) {
