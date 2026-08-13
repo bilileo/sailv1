@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { User, LogOut, ChevronDown } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
+import { Perfil } from './Perfil';
 
 export interface NavbarProps {
   usuarioActivo: { id: string; name: string; role: string } | null;
@@ -34,6 +35,7 @@ export function Navbar({
   const router = useRouter();
   const pathname = usePathname();
   const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
+  const [perfilAbierto, setPerfilAbierto] = useState(false);
 
   const isMaestro = usuarioActivo?.role === 'MAESTRO';
   const isDashboard = pathname.includes('/maestro/dashboard');
@@ -154,10 +156,13 @@ export function Navbar({
         })}
       </div>
       <div className="flex items-center space-x-4 text-sm font-bold">
-        <div className="flex items-center text-gray-700">
+        <button 
+          onClick={() => setPerfilAbierto(true)}
+          className="flex items-center text-gray-700 hover:text-black hover:bg-gray-100 p-2 rounded transition-colors"
+        >
           <User className="w-4 h-4 mr-2" />
           {usuarioActivo ? `${usuarioActivo.name} (${usuarioActivo.role})` : 'Cargando...'}
-        </div>
+        </button>
         <button
           onClick={async () => {
             await signOut({ redirect: false });
@@ -169,6 +174,13 @@ export function Navbar({
           <span>Cerrar Sesión</span>
         </button>
       </div>
+      
+      {perfilAbierto && usuarioActivo && (
+        <Perfil 
+          usuario={usuarioActivo} 
+          onClose={() => setPerfilAbierto(false)} 
+        />
+      )}
     </nav>
   );
 }

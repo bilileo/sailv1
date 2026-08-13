@@ -105,61 +105,71 @@ export async function getStudents(classId: string, providedDate?: string | null)
     .eq('fechaClase', hoy)
     .maybeSingle();
 
+  if (!classDate) return [];
+
   const { data, error } = await supabase
     .from('Attendance')
-    .select('id, studentId, status, observaciones, deviceTypeId, seatDeviceTypeId, checkInTime, claseId, Student ( id, name )')
-    .eq('classSessionId', classId)
+    .select('id, studentId, status, observaciones, deviceTypeId, seatDeviceTypeId, checkInTime, claseId, Student ( id, name, lastName )')
+    .eq('claseId', classDate.id)
     .order('checkInTime', { ascending: false });
 
   if (error) throw error;
 
-  const ahoraMs = Date.now();
-
-  const alumnosFiltrados = (data || []).filter((row: any) => {
-    if (!row.checkInTime) return true;
-    
-    if (classDate?.id && row.claseId && String(row.claseId) === String(classDate.id)) return true;
-
-    const checkInMs = new Date(row.checkInTime).getTime();
-    const tzCheckIn = getTijuanaTimeInfo(new Date(checkInMs));
-    if (tzCheckIn.ymd === hoy) return true;
-
-    const horasPasadas = (ahoraMs - checkInMs) / (1000 * 60 * 60);
-    if (horasPasadas >= 0 && horasPasadas <= 18) return true;
-
-    return false;
-  });
+  const alumnosFiltrados = data || [];
 
   const { data: deviceTypes } = await supabase.from('DeviceType').select('id, name');
   const deviceTypeMap = new Map((deviceTypes || []).map((dt: any) => [dt.id, dt.name]));
 
-  const { data: studentsData } = await supabase.from('Student').select('id, name');
-  const studentMap = new Map((studentsData || []).map((s: any) => [s.id, s.name]));
+  const { data: studentsData } = await supabase.from('Student').select('id, name, lastName');
+  const studentMap = new Map((studentsData || []).map((s: any) => [s.id, { name: s.name, lastName: s.lastName }]));
 
   return alumnosFiltrados.map((row: any) => {
-    let fallbackName = studentMap.get(row.studentId) || row.studentId;
-    if (row.Student) {
-      fallbackName = Array.isArray(row.Student) ? row.Student[0].name : row.Student.name;
+    const r = row as {
+      studentId: string;
+      Student: { id: string; name: string; lastName: string } | { id: string; name: string; lastName: string }[] | null;
+      status: string;
+      observaciones: string;
+      deviceTypeId: number | null;
+      seatDeviceTypeId: number | null;
+    };
+
+    let studentData: { name: string; lastName: string } | null = studentMap.get(r.studentId) || null;
+    if (r.Student) {
+      const data = Array.isArray(r.Student) ? r.Student[0] : r.Student;
+      studentData = { name: data.name, lastName: data.lastName };
     }
 
+    const fullName = studentData ? `${studentData.name} ${studentData.lastName || ''}`.trim() : r.studentId;
+
     return {
-      id: row.studentId,
-      name: fallbackName,
-      status: attendanceToStatus[row.status as AttendanceStatus] || 'normal',
-      observaciones: row.observaciones,
-      deviceTypeId: row.deviceTypeId ?? null,
-      deviceType: row.deviceTypeId ? deviceTypeMap.get(row.deviceTypeId) || null : null,
-      seatDeviceTypeId: row.seatDeviceTypeId ?? null,
-      seatDeviceType: row.seatDeviceTypeId ? deviceTypeMap.get(row.seatDeviceTypeId) || null : null
+      id: r.studentId,
+      name: fullName,
+      status: attendanceToStatus[r.status as AttendanceStatus] || 'normal',
+      observaciones: r.observaciones,
+      deviceTypeId: r.deviceTypeId ?? null,
+      deviceType: r.deviceTypeId ? deviceTypeMap.get(r.deviceTypeId) || null : null,
+      seatDeviceTypeId: r.seatDeviceTypeId ?? null,
+      seatDeviceType: r.seatDeviceTypeId ? deviceTypeMap.get(r.seatDeviceTypeId) || null : null
     };
   });
 }
 
 export async function updateStudentStatus(studentId: string, classId: string, status: StudentStatus, observaciones?: string, providedDate?: string | null) {
+  const hoy = providedDate || getTijuanaTimeInfo().ymd;
+
+  const { data: classDate } = await supabase
+    .from('ClassDate')
+    .select('id')
+    .eq('idClassSession', classId)
+    .eq('fechaClase', hoy)
+    .maybeSingle();
+
+  if (!classDate) return;
+
   const { data: records } = await supabase
     .from('Attendance')
     .select('id')
-    .eq('classSessionId', classId)
+    .eq('claseId', classDate.id)
     .eq('studentId', studentId)
     .order('checkInTime', { ascending: false })
     .limit(1);
@@ -174,10 +184,21 @@ export async function updateStudentStatus(studentId: string, classId: string, st
 }
 
 export async function deleteStudent(studentId: string, classId: string, providedDate?: string | null) {
+  const hoy = providedDate || getTijuanaTimeInfo().ymd;
+
+  const { data: classDate } = await supabase
+    .from('ClassDate')
+    .select('id')
+    .eq('idClassSession', classId)
+    .eq('fechaClase', hoy)
+    .maybeSingle();
+
+  if (!classDate) return;
+
   const { data: records } = await supabase
     .from('Attendance')
     .select('id')
-    .eq('classSessionId', classId)
+    .eq('claseId', classDate.id)
     .eq('studentId', studentId)
     .order('checkInTime', { ascending: false })
     .limit(1);

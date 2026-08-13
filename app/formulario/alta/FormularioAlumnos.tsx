@@ -9,19 +9,22 @@ interface AlumnosProps {
   idSeleccionado: string | null;
   matriculaProp: string;
   nombreProp: string;
+  lastNameProp: string;
   correoProp: string;
   passwordProp: string;
 }
 
-export const FormularioAlumnos = ({ cerrarModal, cargar, idSeleccionado, matriculaProp, nombreProp, correoProp, passwordProp }: AlumnosProps) => {
+export const FormularioAlumnos = ({ cerrarModal, cargar, idSeleccionado, matriculaProp, nombreProp, lastNameProp, correoProp, passwordProp }: AlumnosProps) => {
   // Abrir un modal para agregar o editar alumnos
   const [nombre, setNombre] = useState(nombreProp || '');
+  const [apellidos, setApellidos] = useState(lastNameProp || '');
   const [matricula, setMatricula] = useState(matriculaProp || '');
   const [correo, setCorreo] = useState(correoProp || '');
   const [password, setPassword] = useState(passwordProp ||'');
   const [loading, setLoading] = useState(false);
   const [errores, setErrores] = useState<{
     nombre?: string;
+    apellidos?: string;
     matricula?: string;
     correo?: string;
     password?: string;
@@ -33,13 +36,18 @@ export const FormularioAlumnos = ({ cerrarModal, cargar, idSeleccionado, matricu
     // Validaciones
 
     setErrores({});
-    const nuevosErrores: { nombre?: string; email?: string; password?: string } = {};
+    const nuevosErrores: { nombre?: string; apellidos?: string; email?: string; password?: string } = {};
 
     // Validación de nombre
     if (!nombre.trim()) {
       nuevosErrores.nombre = 'El nombre es obligatorio';
     } else if (nombre.trim().length < 3) {
       nuevosErrores.nombre = 'El nombre debe tener al menos 3 caracteres';
+    }
+
+    // Validación de apellidos
+    if (!apellidos.trim()) {
+      nuevosErrores.apellidos = 'Los apellidos son obligatorios';
     }
 
     // Validación de correo
@@ -80,6 +88,7 @@ export const FormularioAlumnos = ({ cerrarModal, cargar, idSeleccionado, matricu
         body: JSON.stringify({
           id: esEdicion ? idSeleccionado : matricula,
           name: nombre,
+          lastName: apellidos,
           email: correo,
           password
         })
@@ -139,9 +148,9 @@ export const FormularioAlumnos = ({ cerrarModal, cargar, idSeleccionado, matricu
 
             {/* Validación Nombre */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Nombre Completo</label>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Nombre</label>
               <input
-                placeholder="Nombre"
+                placeholder="Nombre(s)"
                 type="text"
                 value={nombre}
                 onChange={e => {
@@ -149,6 +158,22 @@ export const FormularioAlumnos = ({ cerrarModal, cargar, idSeleccionado, matricu
                   if (errores.nombre) setErrores({ ...errores, nombre: undefined });
                 }}
                 className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${errores.nombre ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
+                  }`}
+              />
+            </div>
+
+            {/* Validación Apellidos */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Apellidos</label>
+              <input
+                placeholder="Apellidos"
+                type="text"
+                value={apellidos}
+                onChange={e => {
+                  setApellidos(e.target.value);
+                  if (errores.apellidos) setErrores({ ...errores, apellidos: undefined });
+                }}
+                className={`w-full border-2 rounded-sm px-3 py-2 text-sm text-black outline-none transition-colors ${errores.apellidos ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-[#0b6e3f]'
                   }`}
               />
             </div>

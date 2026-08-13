@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('Student')
-      .select('id, name, email, createdAt')
+      .select('id, name, lastName, email, createdAt')
       .order('createdAt', { ascending: false });
 
     if (id) query = query.eq('id', id);
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
         {
           id: body.id,
           name: body.name,
+          lastName: body.lastName,
           email: body.email,
           password: hash
         }
@@ -71,6 +72,7 @@ export async function PUT(request: Request) {
 
     const updatePayload: Record<string, unknown> = {
       name: body.name,
+      lastName: body.lastName,
       email: body.email
     };
 
