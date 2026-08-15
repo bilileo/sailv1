@@ -8,9 +8,10 @@ export async function GET(request: Request) {
     const id = searchParams.get('id');
     const email = searchParams.get('email');
 
-    let query = supabase
+let query = supabase
       .from('Student')
       .select('id, name, email, createdAt')
+      .eq('activo', true)
       .order('createdAt', { ascending: false });
 
     if (id) query = query.eq('id', id);
@@ -103,7 +104,7 @@ export async function DELETE(request: Request) {
 
     const { error } = await supabase
       .from('Student')
-      .delete()
+      .update({ activo: false })
       .eq('id', id);
 
     if (error) throw error;
