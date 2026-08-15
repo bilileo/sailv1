@@ -14,7 +14,10 @@ export async function GET(request: Request) {
     const role = searchParams.get('role');
 
     // Construimos la consulta
-    let query = supabase.from('User').select('id, name, email, role');
+let query = supabase
+      .from('User')
+      .select('id, name, email, role')
+      .eq('activo', true);
 
     if (role) {
       query = query.eq('role', role);
@@ -100,7 +103,7 @@ export async function DELETE(request: Request) {
 
     const { error } = await supabase
       .from('User')
-      .delete()
+      .update({ activo: false })
       .eq('id', id);
 
     if (error) {

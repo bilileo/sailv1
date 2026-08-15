@@ -10,6 +10,7 @@ import { Alumnos } from './gestion/GestionAlumnos/GestionAlumnos';
 import { GestionUsuarios } from './gestion/GestionPersonal/GestionUsuarios';
 import { GestionIncidencias } from './gestion/GestionIncidencias/GestionIncidencias';
 import { GestionPeriodos } from './gestion/GestionPeriodos/GestionPeriodos';
+import { GestionLaboratorios } from './gestion/GestionLaboratorios/GestionLaboratorios';
 import { Reportes } from './gestion/GestionReportes/Reportes';
 import { GestionGrupos } from './gestion/GestionGrupos/GestionGrupos';
 import { getWeekNumber, getTotalWeeks, getDatesOfWeek } from '../utils/calendar';
@@ -883,6 +884,10 @@ useEffect(() => {
 
         {activeTab === 'Periodos Escolares' && (
           <GestionPeriodos />
+        )}
+
+        {activeTab === 'Laboratorios' && (
+          <GestionLaboratorios />
         )}
       </main>
 

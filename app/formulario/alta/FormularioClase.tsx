@@ -513,22 +513,23 @@ export const FormularioClase = ({ initialValues, onClaseCreada, laboratorios, cl
                 <option value="LABORATORIO">Laboratorio (Práctica)</option>
               </select>
             </div>
-          </div>
-        )}
 
-        {/* === 4. OPCIONES DE REPETICIÓN === */}
-        <div className="flex items-center mt-2">
-          <input
-            type="checkbox"
-            id="repeatClass"
-            checked={repeat}
-            onChange={(e) => setRepeat(e.target.checked)}
-            className="w-4 h-4 text-[#0b6e3f] bg-gray-100 border-gray-300 rounded focus:ring-[#0b6e3f]"
-          />
-          <label htmlFor="repeatClass" className="ml-2 text-sm font-bold text-gray-800">
-            Repetir semanalmente
-          </label>
-        </div>
+            {/* === 4. OPCIONES DE REPETICIÓN === */}
+            <div className="flex items-center mt-2">
+              <input
+                type="checkbox"
+                id="repeatClass"
+                checked={repeat}
+                onChange={(e) => setRepeat(e.target.checked)}
+                className="w-4 h-4 text-[#0b6e3f] bg-gray-100 border-gray-300 rounded focus:ring-[#0b6e3f]"
+              />
+              <label htmlFor="repeatClass" className="ml-2 text-sm font-bold text-gray-800">
+                Repetir semanalmente
+              </label>
+              </div>
+            </div>
+        )}
+        
 
         {/* === 5. FECHAS, DÍA Y DURACIÓN === */}
         <div className="grid grid-cols-2 gap-4">

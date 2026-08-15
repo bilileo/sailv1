@@ -12,12 +12,16 @@ export async function POST(request: Request) {
 
     const { data: student, error } = await supabase
       .from('Student')
-      .select('id, name, lastName, email, password')
+      .select('id, name, lastName, email, password, activo')
       .eq('email', body.email)
       .maybeSingle();
 
     if (error || !student) {
       return NextResponse.json({ error: 'Credenciales invalidas' }, { status: 401 });
+    }
+
+    if (student.activo === false) {
+      return NextResponse.json({ error: 'Esta cuenta ha sido dada de baja. Contacta a la administración del laboratorio.' }, { status: 403 });
     }
 
     const matches = await bcrypt.compare(body.password, student.password);

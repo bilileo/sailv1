@@ -20,11 +20,15 @@ export const authOptions: NextAuthOptions = {
 
         const { data: user, error } = await supabase
           .from('User')
-          .select('*')
+          .select('*') 
           .eq('email', credentials.email)
           .maybeSingle();
-
+        
         if (error || !user?.password) return null;
+
+        if (user.activo === false) {
+          throw new Error("Esta cuenta ha sido dada de baja. Contacta a la administración del laboratorio.");
+        }
 
         const passwordsMatch = await bcrypt.compare(credentials.password, user.password);
         if (!passwordsMatch) return null;

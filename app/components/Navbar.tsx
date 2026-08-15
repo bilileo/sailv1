@@ -19,7 +19,7 @@ export interface NavbarProps {
 const opcionesNavegacion = [
   { tipo: 'item', titulo: 'Inicio', items: ['Inicio'] },
   { tipo: 'grupo', titulo: 'Usuarios', items: ['Administradores', 'Maestros', 'Auxiliares', 'Alumnos'] },
-  { tipo: 'grupo', titulo: 'Gestión Académica', items: ['Clases', 'Grupos', 'Periodos Escolares'] },
+  { tipo: 'grupo', titulo: 'Gestión Académica', items: ['Clases', 'Grupos', 'Periodos Escolares', 'Laboratorios'] },
   { tipo: 'grupo', titulo: 'Seguimiento', items: ['Reportes', 'Incidencias'] }
 ];
 
@@ -41,6 +41,10 @@ export function Navbar({
   const isDashboard = pathname.includes('/maestro/dashboard');
 
   const usuarioPuedeVerTab = (tab: string) => {
+
+    if (tab === 'Laboratorios' && usuarioActivo?.role !== 'ADMIN') {
+      return false;
+    }
     if (usuarioActivo?.role === 'MAESTRO') {
       return tab === 'Inicio' || tab === 'Incidencias' || tab === 'Reportes';
     }
