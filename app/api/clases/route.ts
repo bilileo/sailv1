@@ -176,10 +176,11 @@ export async function GET(request: Request) {
 
     const formattedData = data.map((c) => {
       const row = c as Record<string, any>;
+      const classDates = row['ClassDate'] as any[] | undefined;
+      const totalFechas = classDates?.length || 0;
 
       // Check if ClassSession has a ClassDate in this week
       if (startStr && endStr) {
-        const classDates = row['ClassDate'] as any[] | undefined;
         if (!classDates || classDates.length === 0) return null;
         const hasDateInWeek = classDates.some(d => d.fechaClase >= startStr && d.fechaClase <= endStr);
         if (!hasDateInWeek) return null;
@@ -190,6 +191,7 @@ export async function GET(request: Request) {
 
       const asignatura = row['Asignatura'];
       const laboratory = row['Laboratory'];
+      const grupo = row['Grupo'];
 
       const logsSemana = row['ClassLog'] as any[] | undefined;
       const logEspecifico = logsSemana?.find(l => l.semana === targetSemana);
@@ -204,6 +206,9 @@ export async function GET(request: Request) {
         status: estadoDinamico,
         nombre: asignatura?.['name'] || 'Sin Asignar',
         grupoId: row['grupoId'],
+        grupo: grupo?.['nombre'] || '',
+        totalFechas,
+        esSerie: totalFechas > 1,
         laboratorio: laboratory ? laboratory['name'] : 'Sin Asignar',
         laboratorioId: laboratory?.['id'] || row['laboratoryId'],
         dayOfWeek: row['dayOfWeek'],
@@ -413,16 +418,73 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const mode = searchParams.get('mode') || 'all';
+    const fechaClase = searchParams.get('fechaClase');
 
     if (!id) return NextResponse.json({ error: 'ID no proporcionado' }, { status: 400 });
 
+    if (mode === 'single') {
+      if (!fechaClase) {
+        return NextResponse.json({ error: 'Falta la fecha de la clase a eliminar' }, { status: 400 });
+      }
+
+      const { data: classDate, error: classDateError } = await supabase
+        .from('ClassDate')
+        .select('id')
+        .eq('idClassSession', id)
+        .eq('fechaClase', fechaClase)
+        .maybeSingle();
+
+      if (classDateError) throw classDateError;
+
+      if (!classDate) {
+        return NextResponse.json({ error: 'No se encontró la fecha de clase seleccionada' }, { status: 404 });
+      }
+
+      const { error: attendanceError } = await supabase
+        .from('Attendance')
+        .delete()
+        .eq('claseId', classDate.id);
+
+      if (attendanceError) throw attendanceError;
+
+      const { error: deleteDateError } = await supabase
+        .from('ClassDate')
+        .delete()
+        .eq('id', classDate.id);
+
+      if (deleteDateError) throw deleteDateError;
+
+      const { count, error: countError } = await supabase
+        .from('ClassDate')
+        .select('id', { count: 'exact', head: true })
+        .eq('idClassSession', id);
+
+      if (countError) throw countError;
+
+      if ((count || 0) === 0) {
+        await supabase.from('Attendance').delete().eq('classSessionId', id);
+        await supabase.from('Incident').delete().eq('classSessionId', id);
+
+        const { error: deleteSessionError } = await supabase
+          .from('ClassSession')
+          .delete()
+          .eq('id', id);
+
+        if (deleteSessionError) throw deleteSessionError;
+      }
+
+      return NextResponse.json({ success: true, mode: 'single' });
+    }
+
     await supabase.from('Attendance').delete().eq('classSessionId', id);
     await supabase.from('Incident').delete().eq('classSessionId', id);
+    await supabase.from('ClassDate').delete().eq('idClassSession', id);
 
     const { error } = await supabase.from('ClassSession').delete().eq('id', id);
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, mode: 'all' });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });
