@@ -35,6 +35,9 @@ interface Clase {
   grupoId?: string | number | null;
   maestroId?: string | number;
   asignaturaId?: string | number;
+  totalFechas?: number;
+  esSerie?: boolean;
+  fechaExacta?: string;
 }
 interface Laboratorio { id: number; name: string; }
 interface Maestro { id: number; name: string; }
@@ -357,19 +360,29 @@ useEffect(() => {
     setMostrarConfirmacion(true);
   };
 
-  const confirmarEliminacion = async () => {
+  const confirmarEliminacion = async (modo: 'single' | 'all' = 'all') => {
     if (!claseSeleccionada) return;
     setGuardandoEdicion(true);
 
     try {
-      const res = await fetch(`/api/clases?id=${claseSeleccionada.id}`, { method: 'DELETE' });
+      const params = new URLSearchParams({
+        id: claseSeleccionada.id,
+        mode: modo
+      });
+
+      if (modo === 'single' && claseSeleccionada.fechaExacta) {
+        params.set('fechaClase', claseSeleccionada.fechaExacta);
+      }
+
+      const res = await fetch(`/api/clases?${params.toString()}`, { method: 'DELETE' });
 
       if (res.ok) {
-        toast.success('Clase eliminada permanentemente');
+        toast.success(modo === 'single' ? 'Clase eliminada solo para esta fecha' : 'Clase eliminada permanentemente');
         cerrarModalEdicion();
         await cargarDatosBD();
       } else {
-        toast.error('Error al intentar eliminar la clase');
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || 'Error al intentar eliminar la clase');
       }
     } catch {
       toast.error('Error de red al comunicar con el servidor');
@@ -1181,31 +1194,81 @@ useEffect(() => {
 
                 <h3 className="text-xl font-bold text-gray-800 mb-2">¿Eliminar clase?</h3>
 
-                <p className="text-sm text-gray-600 mb-6">
-                  Estás a punto de eliminar permanentemente la clase <span className="font-bold text-gray-800">"{claseSeleccionada.nombre}"</span>. Esta acción liberará el horario y no se puede deshacer.
-                </p>
+                {claseSeleccionada.esSerie ? (
+                  <>
+                    <p className="text-sm text-gray-600 mb-4">
+                      La clase <span className="font-bold text-gray-800">"{claseSeleccionada.nombre}"</span> pertenece a una serie de varias fechas.
+                    </p>
 
-                <div className="flex space-x-3 w-full">
-                  <button
-                    onClick={() => setMostrarConfirmacion(false)}
-                    disabled={guardandoEdicion}
-                    className="flex-1 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={confirmarEliminacion}
-                    disabled={guardandoEdicion}
-                    className="flex-1 px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded transition-colors shadow-sm flex justify-center items-center gap-2 disabled:opacity-50"
-                  >
-                    {guardandoEdicion ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                    {guardandoEdicion ? 'Borrando...' : 'Sí, eliminar'}
-                  </button>
-                </div>
+                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs text-left p-3 rounded-sm mb-5">
+                      Puedes eliminar solamente la fecha seleccionada o eliminar toda la serie de clases.
+                    </div>
+
+                    <div className="flex flex-col gap-3 w-full">
+                      <button
+                        onClick={() => confirmarEliminacion('single')}
+                        disabled={guardandoEdicion || !claseSeleccionada.fechaExacta}
+                        className="w-full px-4 py-2 text-sm font-bold text-white bg-yellow-600 hover:bg-yellow-700 rounded transition-colors shadow-sm flex justify-center items-center gap-2 disabled:opacity-50"
+                      >
+                        {guardandoEdicion ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                        {guardandoEdicion ? 'Borrando...' : 'Eliminar solo esta fecha'}
+                      </button>
+
+                      <button
+                        onClick={() => confirmarEliminacion('all')}
+                        disabled={guardandoEdicion}
+                        className="w-full px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded transition-colors shadow-sm flex justify-center items-center gap-2 disabled:opacity-50"
+                      >
+                        {guardandoEdicion ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                        {guardandoEdicion ? 'Borrando...' : 'Eliminar toda la serie'}
+                      </button>
+
+                      <button
+                        onClick={() => setMostrarConfirmacion(false)}
+                        disabled={guardandoEdicion}
+                        className="w-full px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600 mb-6">
+                      Estás a punto de eliminar permanentemente la clase <span className="font-bold text-gray-800">"{claseSeleccionada.nombre}"</span>. Esta acción liberará el horario y no se puede deshacer.
+                    </p>
+
+                    <div className="flex space-x-3 w-full">
+                      <button
+                        onClick={() => setMostrarConfirmacion(false)}
+                        disabled={guardandoEdicion}
+                        className="flex-1 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => confirmarEliminacion('all')}
+                        disabled={guardandoEdicion}
+                        className="flex-1 px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded transition-colors shadow-sm flex justify-center items-center gap-2 disabled:opacity-50"
+                      >
+                        {guardandoEdicion ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                        {guardandoEdicion ? 'Borrando...' : 'Sí, eliminar'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
