@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, UserCircle } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -31,7 +31,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+      
+      {/* Contenedor principal del Login */}
       <div className="bg-white p-8 rounded-md shadow-lg w-full max-w-md border border-gray-200">
         <h1 className="text-3xl font-bold text-center text-[#0b6e3f] mb-2">SAIL</h1>
         <p className="text-center text-gray-500 text-sm mb-8">Sistema de Asistencias e Ingreso a Laboratorios</p>
@@ -57,6 +59,18 @@ export default function Login() {
           </button>
         </form>
       </div>
+
+      <div className="mt-8 text-center">
+        <p className="text-sm text-gray-500 mb-3">¿Eres estudiante?</p>
+        <button
+          onClick={() => router.push('/estudiante/login')}
+          className="flex items-center justify-center space-x-2 text-[#0b6e3f] bg-white border border-[#0b6e3f] hover:bg-green-50 px-6 py-2.5 rounded-sm font-bold text-sm transition-colors shadow-sm w-full max-w-[250px] mx-auto active:scale-[0.98]"
+        >
+          <UserCircle className="w-5 h-5" />
+          <span>Ir al Portal del Alumnos</span>
+        </button>
+      </div>
+
     </div>
   );
 }

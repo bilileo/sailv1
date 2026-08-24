@@ -132,6 +132,7 @@ export async function GET(request: Request) {
         id, teacherId, status, startTime, endTime, dayOfWeek, laboratoryId, grupoId, asignaturaId, tipoSession,
         Laboratory(id, name),
         Asignatura(id, name, color),
+        User!teacherId ( name ),
         descripcion,
         Grupo(id, nombre),
         ClassLog(estadoAuditoria, semana),
@@ -193,6 +194,8 @@ export async function GET(request: Request) {
       const laboratory = row['Laboratory'];
       const grupo = row['Grupo'];
 
+      const userObj = Array.isArray(row['User']) ? row['User'][0] : row['User'];
+
       const logsSemana = row['ClassLog'] as any[] | undefined;
       const logEspecifico = logsSemana?.find(l => l.semana === targetSemana);
 
@@ -208,6 +211,7 @@ export async function GET(request: Request) {
         grupoId: row['grupoId'],
         grupo: grupo?.['nombre'] || '',
         totalFechas,
+        maestro: userObj?.name || 'Sin maestro asignado',
         esSerie: totalFechas > 1,
         laboratorio: laboratory ? laboratory['name'] : 'Sin Asignar',
         laboratorioId: laboratory?.['id'] || row['laboratoryId'],

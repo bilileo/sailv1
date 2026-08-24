@@ -7,12 +7,16 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const email = searchParams.get('email');
+    const showAll = searchParams.get('showAll');
 
 let query = supabase
       .from('Student')
-      .select('id, name, lastName, email, createdAt')
-      .eq('activo', true)
+      .select('id, name, lastName, email, createdAt, activo')
       .order('createdAt', { ascending: false });
+
+    if (showAll !== 'true') {
+      query = query.eq('activo', true);
+    }
 
     if (id) query = query.eq('id', id);
     if (email) query = query.eq('email', email);
@@ -71,13 +75,14 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'ID no proporcionado' }, { status: 400 });
     }
 
-    const updatePayload: Record<string, unknown> = {
-      name: body.name,
-      lastName: body.lastName,
-      email: body.email
-    };
+    const updatePayload: Record<string, unknown> = {};
+
+    if (body.name !== undefined) updatePayload.name = body.name;
+    if (body.email !== undefined) updatePayload.email = body.email;
+    if (body.activo !== undefined) updatePayload.activo = body.activo; 
 
     if (body.password) {
+      const bcrypt = require('bcryptjs'); 
       updatePayload.password = await bcrypt.hash(body.password, 10);
     }
 
