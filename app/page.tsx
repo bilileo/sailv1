@@ -34,6 +34,7 @@ interface Clase {
   grupo?: string;
   grupoId?: string | number | null;
   maestroId?: string | number;
+  maestro?: string;
   asignaturaId?: string | number;
   totalFechas?: number;
   esSerie?: boolean;
@@ -525,19 +526,18 @@ useEffect(() => {
     textoLaboratorios = `Laboratorios ${lista} ocupados`;
   }
 
-  const renderizarCelda = (horaStr: string, laboratorioName: string) => {
-    // Buscar si el diaFiltro es Asueto
+const renderizarCelda = (horaStr: string, laboratorioName: string) => {
     const diaAsueto = diasDeSemana.find(d => d.nombre === diaFiltro && d.esAsueto);
     
     if (diaAsueto) {
       if (horaStr === '12:00- 13:00') {
          return (
-           <div className="w-full h-full min-h-[64px] bg-red-100 flex flex-col items-center justify-center p-2 border-b border-black/10 text-red-600 font-bold opacity-70">
+           <div className="w-full h-full bg-red-100 flex flex-col items-center justify-center p-1 border-b border-black/10 text-red-600 font-bold opacity-70 overflow-hidden">
              ASUETO
            </div>
          );
       } else {
-         return <div className="w-full h-full min-h-[64px] bg-red-50 border-b border-black/10"></div>;
+         return <div className="w-full h-full bg-red-50 border-b border-black/10"></div>;
       }
     }
 
@@ -560,7 +560,7 @@ useEffect(() => {
     if (!encontrada) {
       if (isMaestro) {
         return (
-          <div className="w-full h-full min-h-[64px] bg-gray-100 border-b border-gray-200 flex flex-col items-center justify-center p-2 select-none">
+          <div className="w-full h-full bg-gray-100 border-b border-gray-200 flex flex-col items-center justify-center p-1 select-none overflow-hidden">
             <span className="text-[10px] font-medium text-gray-400 text-center uppercase tracking-wider">
               Sin clase asignada
             </span>
@@ -572,8 +572,9 @@ useEffect(() => {
         <button onClick={() => {
             const fechaExacta = diasDeSemana.find(d => d.nombre === diaFiltro)?.fechaExacta;
             handleAbrirFormModal(horaStr, laboratorioName, fechaExacta);
-          }} className="w-full h-full min-h-[64px] bg-gray-100 text-gray-500 flex flex-col items-center justify-center p-2 text-xs border-b border-gray-200 hover:bg-gray-200 transition-colors">
-          Disponible <span className="text-[10px]">(Haga click para agendar)</span>
+          }} className="w-full h-full bg-gray-100 text-gray-500 flex flex-col items-center justify-center p-1 text-xs border-b border-gray-200 hover:bg-gray-200 transition-colors overflow-hidden">
+          <span className="truncate w-full text-center">Disponible</span> 
+          <span className="text-[9px] mt-1 truncate w-full text-center">(Agendar)</span>
         </button>
       );
     }
@@ -610,26 +611,45 @@ useEffect(() => {
     const esLaboratorio = encontrada.tipoSession === 'LABORATORIO';
 
     const TituloSesion = (
-      <span className="text-xs font-bold leading-tight text-center">
+      <div className="flex flex-col items-center justify-center w-full px-1 overflow-hidden min-w-0">
+        {/* TIPO */}
         {esEvento && (
-          <span className="block text-[8px] bg-purple-900/60 border border-white/40 text-white px-1.5 py-0.5 rounded-sm mx-auto mb-1 w-max tracking-widest uppercase shadow-sm backdrop-blur-sm">
+          <span className="inline-block text-[8px] bg-purple-900/60 border border-white/40 text-white px-1.5 py-0.5 rounded-sm mb-0.5 tracking-widest uppercase shadow-sm flex-shrink-0">
             EVENTO ESPECIAL
           </span>
         )}
         {!esEvento && esLaboratorio && (
-          <span className="block text-[8px] bg-blue-900/60 border border-white/40 text-white px-1.5 py-0.5 rounded-sm mx-auto mb-1 w-max tracking-widest uppercase shadow-sm backdrop-blur-sm">
+          <span className="inline-block text-[8px] bg-blue-900/60 border border-white/40 text-white px-1.5 py-0.5 rounded-sm mb-0.5 tracking-widest uppercase shadow-sm flex-shrink-0">
             LABORATORIO
           </span>
         )}
-        {nombreLimpio} {!esEvento && encontrada.grupo && `- Gpo. ${encontrada.grupo}`}
-      </span>
+        
+        {/* NOMBRE */}
+        <span className="text-[11px] font-bold leading-tight text-center w-full line-clamp-2" title={nombreLimpio}>
+          {nombreLimpio}
+        </span>
+        
+        {/* GRUPO */}
+        {!esEvento && encontrada.grupo && (
+          <span className="text-[9px] font-medium mt-0.5 w-full truncate text-center text-white/90" title={`Gpo. ${encontrada.grupo}`}>
+            Gpo. {encontrada.grupo}
+          </span>
+        )}
+        
+        {/* PROFESOR */}
+        {!esEvento && encontrada.maestro && (
+          <span className="text-[9px] font-normal w-full truncate text-center text-white/80" title={`Prof: ${encontrada.maestro}`}>
+            Prof: {encontrada.maestro}
+          </span>
+        )}
+      </div>
     );
 
     return (
       <button
         onClick={() => handleAbrirAcciones(encontrada, diasDeSemana.find(d => d.nombre === diaFiltro)?.fechaExacta)}
         style={esHex && !esMantenimiento && !esFinalizada ? { backgroundColor: colorClase } : {}}
-        className={`w-full h-full min-h-[64px] text-white flex flex-col items-center justify-center p-2 border-b shadow-sm transition-all focus:outline-none
+        className={`w-full h-full text-white flex flex-col items-center justify-center p-1 border-b shadow-sm transition-all focus:outline-none overflow-hidden
           ${esMantenimiento
             ? 'bg-gray-500 border-gray-600'
             : esFinalizada
@@ -647,26 +667,24 @@ useEffect(() => {
         `}
       >
         {esMantenimiento ? (
-          <>
-            <span className="text-[10px] font-bold leading-tight uppercase tracking-wider text-gray-100 text-center">
-              En Mantenimiento
-            </span>
-          </>
+          <span className="text-[10px] font-bold leading-tight uppercase tracking-wider text-gray-100 text-center">
+            En Mantenimiento
+          </span>
         ) : esFinalizada ? (
           <>
             {TituloSesion}
-            <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Finalizada</span>
+            <span className="text-[8px] mt-1 uppercase tracking-wider text-white/80 flex-shrink-0">Finalizada</span>
           </>
         ) : esProgramada ? (
           <>
             {TituloSesion}
-            <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">Programada</span>
+            <span className="text-[8px] mt-1 uppercase tracking-wider text-white/80 flex-shrink-0">Programada</span>
           </>
         ) : (
           <>
             {TituloSesion}
             {esEnCurso && (
-              <span className="text-[9px] mt-1 uppercase tracking-wider text-white/80">En curso</span>
+              <span className="text-[8px] mt-1 uppercase tracking-wider text-white/80 flex-shrink-0 animate-pulse">En curso</span>
             )}
           </>
         )}
@@ -823,7 +841,7 @@ useEffect(() => {
               </div>
 
               <div className="max-h-[600px] overflow-y-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse table-fixed">
                   <thead className="sticky top-0 bg-gray-100 border-b z-20 shadow-sm">
                     <tr>
                       <th className="px-4 py-3 text-xs font-black text-gray-700 uppercase border-r w-24 text-center">Hora</th>
@@ -839,14 +857,17 @@ useEffect(() => {
                   </thead>
                   <tbody>
                     {HORAS_24.map((hora) => (
-                      <tr key={hora} className="border-b border-gray-100">
-                        <td className="px-4 py-2 text-[9px] font-bold text-gray-600 bg-gray-50 border-r text-center">
+                      <tr key={hora} className="border-b border-gray-100 h-[110px]">
+                        <td className="px-4 py-2 text-[9px] font-bold text-gray-600 bg-gray-50 border-r text-center h-[110px]">
                           {hora}
                         </td>
 
                         {laboratorios.map(lab => (
-                          <td key={lab.id} className="p-0 border-r">
-                            {renderizarCelda(hora, lab.name)}
+                          <td key={lab.id} className="p-0 border-r relative h-[110px]">
+                            {/* EVITA EL RESCALADO */}
+                            <div className="absolute inset-0 w-full h-full">
+                              {renderizarCelda(hora, lab.name)}
+                            </div>
                           </td>
                         ))}
                       </tr>
