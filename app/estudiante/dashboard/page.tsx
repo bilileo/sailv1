@@ -116,10 +116,16 @@ export default function StudentDashboard() {
       <main className="max-w-6xl mx-auto p-6 mt-4">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Mi Asistencia</h1>
-          <Link href="/estudiante/join" className="bg-[#1a73e8] hover:bg-blue-700 text-white font-medium py-2 px-4 rounded shadow-sm flex items-center space-x-2 transition-colors">
-            <LogIn className="w-4 h-4" />
-            <span>Unirse a clase (Código)</span>
-          </Link>
+          <div className="flex items-center space-x-3">
+            <Link href="/estudiante/join-materia" className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded shadow-sm flex items-center space-x-2 transition-colors">
+              <LogIn className="w-4 h-4" />
+              <span>Unirse a Materia</span>
+            </Link>
+            <Link href="/estudiante/join" className="bg-[#1a73e8] hover:bg-blue-700 text-white font-medium py-2 px-4 rounded shadow-sm flex items-center space-x-2 transition-colors">
+              <LogIn className="w-4 h-4" />
+              <span>Unirse a clase (Código)</span>
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

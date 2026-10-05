@@ -35,6 +35,8 @@ interface ClaseDash {
   dayOfWeek: number;
   horario: string;
   color: string;
+  asignaturaId?: string;
+  materiaCode?: string;
 }
 
 function TeacherDashboardContent() {
@@ -66,6 +68,7 @@ function TeacherDashboardContent() {
   const [reportModal, setReportModal] = useState<{ studentId: string; status: 'ausente' | 'abandono' } | null>(null);
   const [reportObservaciones, setReportObservaciones] = useState('');
   const [deviceTypes, setDeviceTypes] = useState<Array<{ id: number; name: string }>>([]);
+  const [modalMateriaAbierto, setModalMateriaAbierto] = useState(false);
 
   const labDeviceTypes = deviceTypes.filter((deviceType) => deviceType.id !== 0 && deviceType.id !== 1);
 
@@ -403,6 +406,12 @@ const finalizeClass = async () => {
           </div>
           <div className="flex flex-col items-end space-y-2">
             <button
+              onClick={() => setModalMateriaAbierto(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow-sm text-sm font-medium"
+            >
+              Proyectar código de materia
+            </button>
+            <button
               onClick={finalizeClass}
               disabled={faseClase === 'ended'}
               className="bg-[#d9534f] hover:bg-red-700 disabled:bg-gray-400 text-white px-4 py-2 rounded shadow-sm text-sm font-medium"
@@ -609,6 +618,35 @@ const finalizeClass = async () => {
           </div>
         )}
       </main>
+      {/* === MODAL CÓDIGO MATERIA === */}
+      {modalMateriaAbierto && claseInfo && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-md shadow-2xl w-full max-w-md overflow-hidden flex flex-col items-center p-8 relative">
+            <button
+              onClick={() => setModalMateriaAbierto(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl mb-2 text-black font-medium text-center">Registro a Materia</h2>
+            <p className="text-gray-500 text-sm mb-6 text-center">{claseInfo.nombre}</p>
+            
+            <div className="mb-6 relative flex justify-center bg-white p-2 rounded">
+              <QRCode
+                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/estudiante/join-materia?code=${claseInfo.materiaCode}`}
+                size={200}
+              />
+            </div>
+
+            <div className="flex flex-col items-center w-full">
+              <span className="text-gray-500 text-sm mb-2">O ingresa este código:</span>
+              <div className="border border-blue-400 border-dashed text-blue-500 font-bold text-3xl tracking-widest px-8 py-3 bg-gray-50 w-full text-center">
+                {claseInfo.materiaCode}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
