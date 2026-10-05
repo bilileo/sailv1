@@ -402,7 +402,7 @@ export async function getDashboardClassDetails(classId: string, providedDate?: s
   const { data, error } = await supabase
     .from('ClassSession')
     .select(`
-      id, teacherId, status, dayOfWeek, startTime, endTime, laboratoryId, descripcion,
+      id, teacherId, status, dayOfWeek, startTime, endTime, laboratoryId, descripcion, asignaturaId,
       Laboratory ( name ), Asignatura ( name, materiaCode ), User!teacherId ( name )
     `)
     .eq('id', classId)
@@ -434,6 +434,8 @@ export async function getDashboardClassDetails(classId: string, providedDate?: s
     dayOfWeek: data.dayOfWeek,
     horario: `${data.startTime.substring(0, 5)}-${data.endTime.substring(0, 5)}`,
     color: '#3B82F6',
-    descripcion: data.descripcion
+    descripcion: data.descripcion,
+    asignaturaId: data.asignaturaId ? String(data.asignaturaId) : undefined,
+    materiaCode: asig?.materiaCode || ''
   };
 }
