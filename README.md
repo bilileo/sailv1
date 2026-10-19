@@ -1,4 +1,10 @@
 # SAIL v1 — Sistema de Asistencia e Incidencias de Laboratorios
+# Proyecto creado por:
+* Cristhian Yael Castaños Melendrez
+* Luis Fernando Espinoza Diaz
+* Diego Aaron Mendoza Sanchez
+* Ramón Alberto Vázquez Guzmán
+
 
 ## Descripción
 
